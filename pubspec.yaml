@@ -1,0 +1,56 @@
+name: saragama
+description: A modern, minimal YouTube audio player.
+publish_to: 'none'
+version: 1.1.0+2
+
+environment:
+  sdk: ">=3.1.5 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management & DI
+  get: ^4.7.1
+
+  # Audio playback
+  just_audio: ^0.9.46
+  audio_service: ^0.18.17
+
+  # YouTube stream extraction (same forked version as HarmonyMusic)
+  youtube_explode_dart:
+    git:
+      url: https://github.com/anandnet/youtube_explode_dart.git
+      ref: 1d9ec9baa806705b1d859260eeb389ec28c6b024
+
+  # Local caching
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+  # Networking
+  http: ^1.2.1
+  path_provider: ^2.1.1
+
+  # UI
+  google_fonts: ^6.1.0
+  cached_network_image: ^3.3.1
+  palette_generator: ^0.3.3   # dynamic accent color from album art
+  share_plus: ^10.1.4         # native share sheet
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+  flutter_test:
+    sdk: flutter
+
+  flutter_launcher_icons: ^0.14.0
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/app_icon.png"
+  remove_alpha_ios: true
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/app_icon.png
