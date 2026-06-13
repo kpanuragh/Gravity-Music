@@ -7,6 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
+import '../theme/motion.dart';
 
 /// "PLAYLIST" / "RECENTLY PLAYED" style section heading with optional action.
 class SectionHeader extends StatelessWidget {
@@ -113,11 +114,8 @@ class ArtCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        AppHaptics.light();
-        onTap();
-      },
+    return Pressable(
+      onTap: onTap,
       child: SizedBox(
         width: size,
         child: Column(
@@ -175,50 +173,46 @@ class TrackTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          AppHaptics.light();
-          onTap();
-        },
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.screenMargin, vertical: 8),
-          child: Row(
-            children: [
-              ArtImage(url: imageUrl, size: 52),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppText.title(
-                            size: 15,
-                            color: active
-                                ? AppColors.white
-                                : AppColors.textPrimary)),
-                    const SizedBox(height: 2),
-                    Text(subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppText.subtitle(size: 13)),
-                  ],
-                ),
+    // Pressable (subtle scale) instead of an InkWell ripple, so list rows
+    // share the same tap language as cards and buttons (no Android ripple).
+    return Pressable(
+      onTap: onTap,
+      pressedScale: 0.98,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.screenMargin, vertical: 8),
+        child: Row(
+          children: [
+            ArtImage(url: imageUrl, size: 52),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.title(
+                          size: 15,
+                          color: active
+                              ? AppColors.white
+                              : AppColors.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.subtitle(size: 13)),
+                ],
               ),
-              if (trailing != null) trailing!,
-              if (trailing == null && trailingText != null)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Text(trailingText!, style: AppText.caption()),
-                ),
-            ],
-          ),
+            ),
+            if (trailing != null) trailing!,
+            if (trailing == null && trailingText != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Text(trailingText!, style: AppText.caption()),
+              ),
+          ],
         ),
       ),
     );

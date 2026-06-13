@@ -166,8 +166,15 @@ class PlaybackEngine {
   /// updates `isPlayingUsingLockCachingSource` as a side effect.
   AudioSource createSource(MediaItem item) {
     final url = item.extras!['url'] as String;
-    if (url.startsWith('file://') ||
-        (shouldCacheSongs() && url.startsWith('http'))) {
+    // Locally-downloaded file → play straight off disk, no caching layer and
+    // no network. (LockCachingAudioSource is for caching *remote* streams, so
+    // it must not be used for an already-local file.)
+    if (url.startsWith('file://')) {
+      isPlayingUsingLockCachingSource = false;
+      return AudioSource.uri(
+          Uri.file(url.replaceFirst('file://', '')), tag: item);
+    }
+    if (shouldCacheSongs() && url.startsWith('http')) {
       isPlayingUsingLockCachingSource = true;
       return LockCachingAudioSource(
         Uri.parse(url),

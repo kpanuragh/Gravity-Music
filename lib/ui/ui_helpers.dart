@@ -29,7 +29,10 @@ MediaItem _mediaItem({
           ? Uri.tryParse(ThumbUtil.get(thumbnail, ThumbnailSize.art))
           : null,
       duration: duration,
-      extras: const {'url': ''},
+      // NOT const: the audio handler writes the resolved stream URL back into
+      // this map (extras['url'] = …) at play time. A const map is unmodifiable
+      // and would throw, leaving the track stuck loading forever.
+      extras: {'url': ''},
     );
 
 extension LibraryTrackMedia on LibraryTrack {

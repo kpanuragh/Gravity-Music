@@ -6,7 +6,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
+import '../../controllers/download_controller.dart';
 import '../../controllers/player_controller.dart';
 import '../../services/library_service.dart';
 import '../../services/thumb_util.dart';
@@ -14,6 +16,7 @@ import '../app_theme.dart';
 import '../theme/glass.dart';
 import '../ui_helpers.dart';
 import '../widgets/common_widgets.dart';
+import '../widgets/mini_player.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -27,6 +30,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild whenever the library box changes (e.g. a playlist created from
+    // the Now Playing sheet) — this tab stays mounted, so without this it
+    // would show stale data until manually refreshed.
+    return ValueListenableBuilder(
+      valueListenable: Hive.box('LibraryBox').listenable(),
+      builder: (context, _, __) => _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final liked = LibraryService.getLiked();
     final playlists = LibraryService.getPlaylists();
 
@@ -66,12 +79,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
             icon: Icons.download_done_rounded,
             iconColor: Colors.greenAccent,
             title: 'Downloads',
-            subtitle: 'Cached for offline',
-            onTap: () => Get.snackbar('Downloads',
-                'Enable “Cache songs” in playback settings to keep tracks offline.',
-                snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: AppColors.card,
-                colorText: Colors.white),
+            subtitle: 'Saved for offline',
+            onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DownloadsScreen())),
           ),
         ),
         // ── Playlists grid ──────────────────────────────────────────────
@@ -220,6 +230,38 @@ class _LibraryRow extends StatelessWidget {
   }
 }
 
+// ── Docked mini-player ───────────────────────────────────────────────────────
+
+/// Overlays the floating mini-player at the bottom of a pushed full-screen
+/// route (Liked Songs / Playlist detail). The root mini-player lives in
+/// RootShell and is covered by these routes, so we re-dock one here for
+/// continuity. Content should reserve ~96px of bottom padding.
+class _WithMiniPlayer extends StatelessWidget {
+  final Widget child;
+  const _WithMiniPlayer({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        child,
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: const MiniPlayer(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // ── Liked Songs ────────────────────────────────────────────────────────────
 
 class LikedSongsScreen extends StatelessWidget {
@@ -232,7 +274,8 @@ class LikedSongsScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      body: CustomScrollView(
+      body: _WithMiniPlayer(
+        child: CustomScrollView(
         slivers: [
           SliverAppBar(
             backgroundColor: AppColors.canvas,
@@ -275,7 +318,9 @@ class LikedSongsScreen extends StatelessWidget {
                 childCount: liked.length,
               ),
             ),
+          const SliverToBoxAdapter(child: SizedBox(height: 96)),
         ],
+        ),
       ),
     );
   }
@@ -312,7 +357,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      body: CustomScrollView(
+      body: _WithMiniPlayer(
+        child: CustomScrollView(
         slivers: [
           SliverAppBar(
             backgroundColor: AppColors.canvas,
@@ -361,7 +407,34 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 message: 'Add songs from the player’s “…” menu.',
               ),
             )
-          else
+          else ...[
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.screenMargin, 8,
+                    AppSpacing.screenMargin, AppSpacing.gutter),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: PrimaryButton(
+                        label: 'Play',
+                        icon: Icons.play_arrow_rounded,
+                        onTap: () => pc.playAllMedia(
+                            pl.tracks.map((t) => t.toMediaItem()).toList()),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.gutter),
+                    Expanded(
+                      child: SecondaryButton(
+                        label: 'Shuffle',
+                        icon: Icons.shuffle_rounded,
+                        onTap: () => pc.playShuffledMedia(
+                            pl.tracks.map((t) => t.toMediaItem()).toList()),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             SliverList(
               delegate: SliverChildBuilderDelegate(
                 (_, i) {
@@ -387,9 +460,150 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 childCount: pl.tracks.length,
               ),
             ),
+          ],
           const SliverToBoxAdapter(
               child: SizedBox(height: AppSpacing.bottomDock)),
         ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Downloads ────────────────────────────────────────────────────────────────
+
+class DownloadsScreen extends StatelessWidget {
+  const DownloadsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final pc = Get.find<PlayerController>();
+    final dc = Get.find<DownloadController>();
+
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: _WithMiniPlayer(
+        child: Obx(() {
+          final downloads = dc.downloads;
+          final downloading = dc.downloading;
+
+          return CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                backgroundColor: AppColors.canvas,
+                pinned: true,
+                leading: const AppBackButton(),
+                title: Text('Downloads', style: AppText.title(size: 18)),
+                actions: [
+                  if (downloads.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.play_circle_fill_rounded,
+                          color: Colors.white, size: 30),
+                      onPressed: () => pc.playAllMedia(
+                          downloads.map((t) => t.toMediaItem()).toList()),
+                    ),
+                ],
+              ),
+
+              // ── Play / Shuffle ──────────────────────────────────────────
+              if (downloads.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.screenMargin,
+                        8, AppSpacing.screenMargin, AppSpacing.gutter),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: PrimaryButton(
+                            label: 'Play',
+                            icon: Icons.play_arrow_rounded,
+                            onTap: () => pc.playAllMedia(downloads
+                                .map((t) => t.toMediaItem())
+                                .toList()),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.gutter),
+                        Expanded(
+                          child: SecondaryButton(
+                            label: 'Shuffle',
+                            icon: Icons.shuffle_rounded,
+                            onTap: () => pc.playShuffledMedia(downloads
+                                .map((t) => t.toMediaItem())
+                                .toList()),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // ── In-progress downloads ───────────────────────────────────
+              if (downloading.isNotEmpty)
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (_, i) {
+                      final t = downloading[i];
+                      return Obx(() {
+                        final p = dc.progress[t.videoId] ?? 0.0;
+                        return TrackTile(
+                          imageUrl: sizedThumb(t.thumbnail, ThumbnailSize.tile),
+                          title: t.title,
+                          subtitle:
+                              'Downloading… ${(p * 100).clamp(0, 100).toStringAsFixed(0)}%',
+                          trailing: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              value: p == 0 ? null : p,
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          ),
+                          onTap: () {},
+                        );
+                      });
+                    },
+                    childCount: downloading.length,
+                  ),
+                ),
+
+              // ── Completed downloads / empty state ───────────────────────
+              if (downloads.isEmpty && downloading.isEmpty)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: EmptyState(
+                    icon: Icons.download_rounded,
+                    title: 'No downloads yet',
+                    message:
+                        'Tap the “…” menu on a song and choose Download to\nsave it for offline listening.',
+                  ),
+                )
+              else
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (_, i) {
+                      final t = downloads[i];
+                      return TrackTile(
+                        imageUrl: sizedThumb(t.thumbnail, ThumbnailSize.tile),
+                        title: t.title,
+                        subtitle: t.artist,
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded,
+                              color: AppColors.textTertiary),
+                          onPressed: () => dc.delete(t.videoId),
+                        ),
+                        onTap: () => pc.playAllMedia(
+                            downloads.map((x) => x.toMediaItem()).toList(),
+                            startIndex: i),
+                      );
+                    },
+                    childCount: downloads.length,
+                  ),
+                ),
+              const SliverToBoxAdapter(child: SizedBox(height: 96)),
+            ],
+          );
+        }),
       ),
     );
   }

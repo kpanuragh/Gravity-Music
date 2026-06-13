@@ -10,12 +10,15 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../controllers/download_controller.dart';
 import '../../controllers/lyrics_controller.dart';
 import '../../controllers/player_controller.dart';
+import '../../services/library_service.dart';
 import '../../services/thumb_util.dart';
 import '../app_theme.dart';
 import '../theme/dynamic_color_controller.dart';
 import '../theme/glass.dart';
+import '../theme/motion.dart';
 import '../ui_helpers.dart';
 import '../widgets/common_widgets.dart';
 
@@ -38,7 +41,8 @@ class NowPlayingScreen extends StatelessWidget {
         // Dynamic wash from album art bleeding into pure black (Z0 layer).
         final base = colors.base.value;
         return AnimatedContainer(
-          duration: const Duration(milliseconds: 600),
+          duration: AppMotion.large,
+          curve: AppMotion.emphasized,
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
@@ -61,18 +65,58 @@ class NowPlayingScreen extends StatelessWidget {
   }
 }
 
-class _PlayerBody extends StatelessWidget {
+class _PlayerBody extends StatefulWidget {
   final PlayerController pc;
   const _PlayerBody({required this.pc});
 
   @override
+  State<_PlayerBody> createState() => _PlayerBodyState();
+}
+
+class _PlayerBodyState extends State<_PlayerBody>
+    with SingleTickerProviderStateMixin {
+  // One controller drives the whole entrance; each row reveals over its own
+  // interval so the controls cascade in after the artwork has morphed in.
+  late final AnimationController _entrance = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  )..forward();
+
+  @override
+  void dispose() {
+    _entrance.dispose();
+    super.dispose();
+  }
+
+  /// Fade + gentle rise over [start]…[end] of the entrance timeline.
+  Widget _rise(double start, double end, Widget child) {
+    final anim = CurvedAnimation(
+      parent: _entrance,
+      curve: Interval(start, end, curve: AppMotion.standardCurve),
+    );
+    return AnimatedBuilder(
+      animation: anim,
+      child: child,
+      builder: (_, c) => Opacity(
+        opacity: anim.value.clamp(0.0, 1.0),
+        child: Transform.translate(
+          offset: Offset(0, (1 - anim.value) * 14),
+          child: c,
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final pc = widget.pc;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenMargin),
       child: Column(
         children: [
-          _TopBar(),
+          _rise(0.0, 0.4, _TopBar()),
           // ── Artwork (flexible — shrinks on short heights, no overflow) ─
+          // Not staggered: it morphs in from the mini-player via the Hero.
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.stackMd),
@@ -111,45 +155,49 @@ class _PlayerBody extends StatelessWidget {
             ),
           ),
           // ── Title + artist + like ────────────────────────────────────
-          Obx(() {
-            final song = pc.currentSong.value;
-            return Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(song?.title ?? 'Nothing playing',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppText.heading(size: 26)),
-                      const SizedBox(height: 4),
-                      Text(song?.artist ?? '',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppText.subtitle(
-                              size: 16, color: AppColors.textSecondaryHi)),
-                    ],
+          _rise(
+            0.3,
+            0.7,
+            Obx(() {
+              final song = pc.currentSong.value;
+              return Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(song?.title ?? 'Nothing playing',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.heading(size: 26)),
+                        const SizedBox(height: 4),
+                        Text(song?.artist ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppText.subtitle(
+                                size: 16, color: AppColors.textSecondaryHi)),
+                      ],
+                    ),
                   ),
-                ),
-                Obx(() => GlassIconButton(
-                      icon: pc.isCurrentSongLiked.value
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      iconColor: pc.isCurrentSongLiked.value
-                          ? AppColors.accent
-                          : Colors.white,
-                      onTap: pc.toggleLike,
-                    )),
-              ],
-            );
-          }),
+                  Obx(() => GlassIconButton(
+                        icon: pc.isCurrentSongLiked.value
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        iconColor: pc.isCurrentSongLiked.value
+                            ? AppColors.accent
+                            : Colors.white,
+                        onTap: pc.toggleLike,
+                      )),
+                ],
+              );
+            }),
+          ),
           const SizedBox(height: AppSpacing.stackMd),
-          _SeekBar(pc: pc),
+          _rise(0.42, 0.82, _SeekBar(pc: pc)),
           const SizedBox(height: AppSpacing.stackSm),
-          _Controls(pc: pc),
+          _rise(0.5, 0.9, _Controls(pc: pc)),
           const SizedBox(height: AppSpacing.stackMd),
-          _SecondaryBar(pc: pc),
+          _rise(0.58, 1.0, _SecondaryBar(pc: pc)),
           const SizedBox(height: AppSpacing.gutter),
         ],
       ),
@@ -193,6 +241,64 @@ class _TopBar extends StatelessWidget {
           children: [
             const SheetHandle(),
             const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.playlist_add_rounded, color: Colors.white),
+              title: Text('Add to playlist', style: AppText.title(size: 15)),
+              onTap: () {
+                Navigator.pop(context);
+                final song = pc.currentSong.value;
+                if (song != null) showAddToPlaylistSheet(context, song);
+              },
+            ),
+            Obx(() {
+              final dc = Get.find<DownloadController>();
+              final song = pc.currentSong.value;
+              final id = song?.id ?? '';
+              final done = dc.isDownloaded(id);
+              final busy = dc.isDownloading(id);
+              return ListTile(
+                leading: Icon(
+                  done
+                      ? Icons.download_done_rounded
+                      : Icons.download_rounded,
+                  color: done ? Colors.greenAccent : Colors.white,
+                ),
+                title: Text(
+                    done
+                        ? 'Downloaded'
+                        : busy
+                            ? 'Downloading…'
+                            : 'Download',
+                    style: AppText.title(size: 15)),
+                trailing: busy
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : (done
+                        ? Text('Tap to remove', style: AppText.subtitle())
+                        : null),
+                onTap: () {
+                  if (song == null) return;
+                  final track = LibraryTrack(
+                    videoId: song.id,
+                    title: song.title,
+                    artist: song.artist ?? '',
+                    thumbnail: song.artUri?.toString() ?? '',
+                    duration:
+                        song.duration != null ? fmtDuration(song.duration!) : '',
+                  );
+                  if (done) {
+                    dc.delete(id);
+                    Navigator.pop(context);
+                  } else if (!busy) {
+                    Navigator.pop(context);
+                    dc.startDownload(track);
+                  }
+                },
+              );
+            }),
             ListTile(
               leading: const Icon(Icons.high_quality_rounded, color: Colors.white),
               title: Text('Streaming quality', style: AppText.title(size: 15)),
@@ -427,16 +533,34 @@ class _SecondaryBar extends StatelessWidget {
 
 // ── Lyrics overlay ───────────────────────────────────────────────────────────
 
-class _LyricsOverlay extends StatelessWidget {
+class _LyricsOverlay extends StatefulWidget {
   @override
-  Widget build(BuildContext context) {
-    final lyrics = Get.find<LyricsController>();
-    final pc = Get.find<PlayerController>();
-    // Keep the active line in sync with playback while open.
-    ever(pc.progressBarState, (s) {
+  State<_LyricsOverlay> createState() => _LyricsOverlayState();
+}
+
+class _LyricsOverlayState extends State<_LyricsOverlay> {
+  final lyrics = Get.find<LyricsController>();
+  final pc = Get.find<PlayerController>();
+  late final Worker _posWorker;
+
+  @override
+  void initState() {
+    super.initState();
+    // Keep the active line in sync with playback while open. Registered ONCE
+    // here (previously this lived in build(), leaking a listener per rebuild).
+    _posWorker = ever(pc.progressBarState, (ProgressBarState s) {
       if (lyrics.isOpen.value) lyrics.updatePlaybackPosition(s.current);
     });
+  }
 
+  @override
+  void dispose() {
+    _posWorker.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Obx(() {
       if (!lyrics.isOpen.value) return const SizedBox.shrink();
       return Positioned.fill(
@@ -576,6 +700,148 @@ void showQueueSheet(BuildContext context) {
           ],
         ),
       ),
+    ),
+  );
+}
+
+// ── Add-to-playlist sheet ───────────────────────────────────────────────────
+
+/// Bottom sheet to add [song] to one of the user's local playlists (or a new
+/// one). Backed entirely by the existing LibraryService — no new storage.
+void showAddToPlaylistSheet(BuildContext context, MediaItem song) {
+  final track = LibraryTrack(
+    videoId: song.id,
+    title: song.title,
+    artist: song.artist ?? '',
+    thumbnail: song.artUri?.toString() ?? '',
+    duration: song.duration != null ? fmtDuration(song.duration!) : '',
+  );
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetCtx) => StatefulBuilder(
+      builder: (sheetCtx, setSheetState) {
+        final playlists = LibraryService.getPlaylists();
+        return GlassContainer(
+          radius: AppRadius.xl,
+          blur: 30,
+          fill: AppColors.card.withOpacity(0.72),
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SheetHandle(),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Text('Add to playlist', style: AppText.heading(size: 20)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppColors.glassFill,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  child: const Icon(Icons.add_rounded, color: Colors.white),
+                ),
+                title: Text('New playlist', style: AppText.title(size: 15)),
+                onTap: () async {
+                  final name = await _promptNewPlaylistName(sheetCtx);
+                  if (name == null || name.isEmpty) return;
+                  final pl = LibraryService.createPlaylist(name);
+                  LibraryService.addTrackToPlaylist(pl.id, track);
+                  if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                  Get.snackbar('Added', 'Added to "${pl.name}"',
+                      snackPosition: SnackPosition.BOTTOM,
+                      backgroundColor: AppColors.card,
+                      colorText: Colors.white);
+                },
+              ),
+              if (playlists.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Text('No playlists yet — create one above.',
+                      style: AppText.subtitle(size: 13)),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: playlists.length,
+                    itemBuilder: (_, i) {
+                      final pl = playlists[i];
+                      final contains =
+                          pl.tracks.any((t) => t.videoId == track.videoId);
+                      return TrackTile(
+                        imageUrl:
+                            sizedThumb(pl.thumbnailUrl, ThumbnailSize.tile),
+                        title: pl.name,
+                        subtitle: '${pl.tracks.length} songs',
+                        trailing: contains
+                            ? const Icon(Icons.check_circle_rounded,
+                                color: Colors.white)
+                            : const Icon(Icons.add_circle_outline_rounded,
+                                color: AppColors.textTertiary),
+                        onTap: () {
+                          if (contains) {
+                            Navigator.pop(sheetCtx);
+                            Get.snackbar('Already added',
+                                'This song is already in "${pl.name}"',
+                                snackPosition: SnackPosition.BOTTOM,
+                                backgroundColor: AppColors.card,
+                                colorText: Colors.white);
+                            return;
+                          }
+                          LibraryService.addTrackToPlaylist(pl.id, track);
+                          Navigator.pop(sheetCtx);
+                          Get.snackbar('Added', 'Added to "${pl.name}"',
+                              snackPosition: SnackPosition.BOTTOM,
+                              backgroundColor: AppColors.card,
+                              colorText: Colors.white);
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+/// Small "name your playlist" dialog reused by the add-to-playlist sheet.
+Future<String?> _promptNewPlaylistName(BuildContext context) {
+  final controller = TextEditingController();
+  return showDialog<String>(
+    context: context,
+    builder: (_) => AlertDialog(
+      backgroundColor: AppColors.card,
+      title: Text('New playlist', style: AppText.title(size: 18)),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        style: AppText.title(size: 15),
+        decoration: const InputDecoration(hintText: 'Playlist name'),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
+        TextButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Create')),
+      ],
     ),
   );
 }

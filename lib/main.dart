@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'controllers/download_controller.dart';
 import 'controllers/lyrics_controller.dart';
 import 'controllers/player_controller.dart';
 import 'services/audio_handler.dart';
@@ -10,6 +11,7 @@ import 'services/battery_optimization.dart';
 import 'ui/app_theme.dart';
 import 'ui/shell/root_shell.dart';
 import 'ui/theme/dynamic_color_controller.dart';
+import 'ui/theme/motion.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +22,7 @@ void main() async {
   await Hive.openBox('SongsUrlCache');
   await Hive.openBox('LibraryBox');
   await Hive.openBox('CacheBox');
+  await Hive.openBox('DownloadsBox');
 
   // ── Register audio handler (same as HarmonyMusic) ─────────────────────────
   final audioHandler = await initAudioService();
@@ -30,6 +33,9 @@ void main() async {
 
   // Drives the artwork → accent/base color theming used across the UI.
   Get.put(DynamicColorController());
+
+  // Offline downloads (file persistence + reactive progress/list).
+  Get.put(DownloadController());
 
 // Listen to song changes and auto-fetch lyrics
 ever(Get.find<PlayerController>().currentSong, (song) {
@@ -73,6 +79,18 @@ class YTPlayerApp extends StatelessWidget {
         textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
         sliderTheme: const SliderThemeData(
           trackShape: RoundedRectSliderTrackShape(),
+        ),
+        // Replace the stock platform (Android zoom) page transition with a
+        // calm fade-through so all navigation shares one continuous language.
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: FadeThroughPageTransitionsBuilder(),
+            TargetPlatform.iOS: FadeThroughPageTransitionsBuilder(),
+            TargetPlatform.fuchsia: FadeThroughPageTransitionsBuilder(),
+            TargetPlatform.linux: FadeThroughPageTransitionsBuilder(),
+            TargetPlatform.macOS: FadeThroughPageTransitionsBuilder(),
+            TargetPlatform.windows: FadeThroughPageTransitionsBuilder(),
+          },
         ),
         useMaterial3: true,
       ),

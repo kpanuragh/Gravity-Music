@@ -24,8 +24,10 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/hm_streaming_data.dart';
 import '../services/background_task.dart';
+import '../services/download_service.dart';
 import '../services/playback_engine.dart';
 import '../services/queue_manager.dart';
+import '../services/stream_service.dart';
 import '../controllers/player_controller.dart';
 
 Future<AudioHandler> initAudioService() async {
@@ -372,6 +374,25 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
       {bool generateNewUrl = false}) async {
     final urlCacheBox = Hive.box('SongsUrlCache');
     final qualityIndex = Hive.box('AppPrefs').get('streamingQuality') ?? 1;
+
+    // 0. Offline download — highest priority. If the track is downloaded,
+    //    play straight off disk and never touch the network.
+    final offlineUrl = DownloadService.playbackUrlFor(videoId);
+    if (offlineUrl != null) {
+      return HMStreamingData(
+        playable: true,
+        statusMSG: 'OK',
+        highQualityAudio: Audio(
+          itag: 140,
+          audioCodec: Codec.mp4a,
+          bitrate: 0,
+          duration: 0,
+          loudnessDb: DownloadService.loudnessFor(videoId),
+          url: offlineUrl,
+          size: 0,
+        ),
+      );
+    }
 
     // 1. Check if URL is cached and still valid
     if (urlCacheBox.containsKey(videoId) && !generateNewUrl) {

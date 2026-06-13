@@ -11,6 +11,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
+import 'motion.dart';
 
 /// A frosted-glass surface: rounded, blurred backdrop with a hairline border.
 class GlassContainer extends StatelessWidget {
@@ -100,13 +101,29 @@ class _GlassIconButtonState extends State<GlassIconButton> {
         AppHaptics.light();
         widget.onTap();
       },
-      child: GlassContainer(
-        radius: AppRadius.pill,
-        fill: _down ? AppColors.glassFillActive : AppColors.glassFill,
-        child: SizedBox(
-          width: widget.size,
-          height: widget.size,
-          child: Icon(widget.icon, size: widget.iconSize, color: widget.iconColor),
+      child: AnimatedScale(
+        scale: _down ? 0.9 : 1.0,
+        duration: AppMotion.fast,
+        curve: AppMotion.standardCurve,
+        child: AnimatedContainer(
+          duration: AppMotion.fast,
+          curve: AppMotion.standardCurve,
+          decoration: BoxDecoration(
+            color: _down ? AppColors.glassFillActive : AppColors.glassFill,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            border: Border.all(color: AppColors.glassBorder, width: 1),
+          ),
+          child: GlassContainer(
+            radius: AppRadius.pill,
+            fill: Colors.transparent,
+            border: false,
+            child: SizedBox(
+              width: widget.size,
+              height: widget.size,
+              child: Icon(widget.icon,
+                  size: widget.iconSize, color: widget.iconColor),
+            ),
+          ),
         ),
       ),
     );
