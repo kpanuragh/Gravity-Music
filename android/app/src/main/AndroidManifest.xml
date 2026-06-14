@@ -46,6 +46,13 @@
             <action android:name="android.intent.action.MEDIA_BUTTON" />
         </intent-filter>
     </receiver>
+        <!-- Android Auto: declares this as a media app so Auto surfaces the
+             existing audio_service MediaBrowserService (the <service> above)
+             in the car. Points at res/xml/automotive_app_desc.xml. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

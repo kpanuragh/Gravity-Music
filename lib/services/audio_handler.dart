@@ -25,10 +25,13 @@ import 'package:path_provider/path_provider.dart';
 import '../models/hm_streaming_data.dart';
 import '../services/background_task.dart';
 import '../services/download_service.dart';
+import '../services/library_service.dart';
 import '../services/playback_engine.dart';
 import '../services/queue_manager.dart';
 import '../services/stream_service.dart';
+import '../services/thumb_util.dart';
 import '../controllers/player_controller.dart';
+import '../ui/ui_helpers.dart';
 
 Future<AudioHandler> initAudioService() async {
   return AudioService.init(
@@ -415,6 +418,124 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
 
     data.setQualityIndex(qualityIndex);
     return data;
+  }
+
+  // ── Android Auto browsing ──────────────────────────────────────────────────
+  // audio_service already runs a MediaBrowserService (the AudioService declared
+  // in AndroidManifest extends MediaBrowserServiceCompat) and exposes it to
+  // Android Auto via the MediaBrowserService intent-filter + the car meta-data
+  // in the manifest. So Android Auto support is purely a matter of answering the
+  // browse tree here — there is NO second player and NO second service. A song
+  // tapped in the car routes through the same customAction('playAllFrom') the
+  // in-app UI uses, so the queue / engine / playbackState are identical and the
+  // phone and car stay in sync automatically (it's one ExoPlayer).
+  //
+  // Tree (mirrors the app's Library → Playlists):
+  //   root           → [ "Playlists" ]
+  //   playlists      → one browsable node per LocalPlaylist
+  //   playlist/<id>  → one playable node per track
+  static const _rootId = 'root';
+  static const _playlistsId = 'playlists';
+  static const _playlistPrefix = 'playlist/';
+  static const _songPrefix = 'song/';
+
+  LocalPlaylist? _playlistById(String id) {
+    for (final p in LibraryService.getPlaylists()) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
+  @override
+  Future<List<MediaItem>> getChildren(String parentMediaId,
+      [Map<String, dynamic>? options]) async {
+    // Top level: a single "Playlists" folder (mirrors the in-app structure).
+    if (parentMediaId == _rootId) {
+      return [
+        const MediaItem(id: _playlistsId, title: 'Playlists', playable: false),
+      ];
+    }
+
+    // The "Playlists" folder: one browsable node per saved playlist.
+    if (parentMediaId == _playlistsId) {
+      return LibraryService.getPlaylists()
+          .map((p) => MediaItem(
+                id: '$_playlistPrefix${p.id}',
+                title: p.name,
+                playable: false,
+                artUri: p.thumbnailUrl.isNotEmpty
+                    ? Uri.tryParse(
+                        ThumbUtil.get(p.thumbnailUrl, ThumbnailSize.card))
+                    : null,
+              ))
+          .toList();
+    }
+
+    // A specific playlist: its tracks, each playable.
+    if (parentMediaId.startsWith(_playlistPrefix)) {
+      final id = parentMediaId.substring(_playlistPrefix.length);
+      final playlist = _playlistById(id);
+      if (playlist == null) return [];
+      return playlist.tracks
+          .map((t) => MediaItem(
+                // Encode the playlist context so playFromMediaId can rebuild the
+                // queue from the right playlist (queue items themselves still use
+                // the bare videoId via toMediaItem()).
+                id: '$_songPrefix$id/${t.videoId}',
+                title: prettyTitle(t.title),
+                artist: t.artist,
+                duration:
+                    t.durationValue == Duration.zero ? null : t.durationValue,
+                artUri: t.thumbnail.isNotEmpty
+                    ? Uri.tryParse(
+                        ThumbUtil.get(t.thumbnail, ThumbnailSize.art))
+                    : null,
+                playable: true,
+              ))
+          .toList();
+    }
+
+    return const [];
+  }
+
+  @override
+  Future<MediaItem?> getMediaItem(String mediaId) async {
+    if (mediaId == _playlistsId) {
+      return const MediaItem(
+          id: _playlistsId, title: 'Playlists', playable: false);
+    }
+    if (mediaId.startsWith(_playlistPrefix)) {
+      final p = _playlistById(mediaId.substring(_playlistPrefix.length));
+      if (p != null) {
+        return MediaItem(id: mediaId, title: p.name, playable: false);
+      }
+    }
+    return null;
+  }
+
+  @override
+  Future<void> playFromMediaId(String mediaId,
+      [Map<String, dynamic>? extras]) async {
+    // Only song nodes are playable: 'song/<playlistId>/<videoId>'.
+    if (!mediaId.startsWith(_songPrefix)) return;
+    final rest = mediaId.substring(_songPrefix.length);
+    final sep = rest.indexOf('/');
+    if (sep == -1) return;
+    final playlistId = rest.substring(0, sep);
+    final videoId = rest.substring(sep + 1);
+
+    final playlist = _playlistById(playlistId);
+    if (playlist == null || playlist.tracks.isEmpty) return;
+
+    final items = playlist.tracks.map((t) => t.toMediaItem()).toList();
+    var startIndex =
+        playlist.tracks.indexWhere((t) => t.videoId == videoId);
+    if (startIndex < 0) startIndex = 0;
+
+    // Exact same path the in-app "play this playlist from this track" uses —
+    // one queue, one engine, one playbackState shared with the phone UI.
+    await customAction(
+        'playAllFrom', {'items': items, 'startIndex': startIndex});
   }
 
   // ── customAction — internal command bus ───────────────────────────────────

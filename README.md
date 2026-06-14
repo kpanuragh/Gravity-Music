@@ -2,15 +2,19 @@
 
 A premium Android music streaming app with dynamic album-driven visuals, a floating glassmorphism UI, personalized discovery, playlists, and an immersive Apple Music-inspired listening experience — built with Flutter and powered by YouTube as a streaming backend.
 
+Gravity Music is the successor to **Saragama**, rebuilt from the ground up with a new design language, architecture, and feature set.
+
 ## Features
 
 - **Cinematic Dark UI** — obsidian glassmorphism design with floating navigation, a floating mini-player, and blurred translucent surfaces
 - **Dynamic theming** — accent and background colors are extracted from the current track's artwork
-- **Home** — recently played, personalized "Made For You" recommendations, and your playlists
+- **Home** — recently played, personalized "Mixes" recommendations refreshed daily, and your playlists
 - **Search** — search YouTube for any song, artist, or genre
-- **Library** — liked songs and custom playlists
+- **Library** — liked songs, custom playlists, and offline downloads
+- **Playlist import** — import playlists directly from Spotify or Apple Music links
 - **Now Playing** — full-screen player with synced lyrics, queue management, shuffle/loop, sleep timer, and streaming quality toggle
 - **Background playback** — lock-screen and notification controls with high-resolution artwork, loudness normalization, and session restore across app restarts
+- **Android Auto** — browse and play your playlists from the car
 - **Offline-friendly caching** — resolved stream URLs, song downloads, home/playlist data are cached locally
 
 ## Tech Stack
@@ -44,9 +48,3 @@ The playback stack is split into focused layers:
 - **`LyricsController`** — fetches and syncs lyrics from lrclib.net
 
 Stream URLs are resolved with a cache-first strategy (cached file → downloaded file → cached URL → fresh fetch via an isolate), modeled by `HMStreamingData`.
-
-See [CLAUDE.md](CLAUDE.md) for a detailed architecture and contributor guide.
-
-## Acknowledgements
-
-Architecture and playback logic are a Flutter port of [HarmonyMusic](https://github.com/anandnet/Harmony-Music).
