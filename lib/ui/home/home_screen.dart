@@ -1,10 +1,9 @@
 // ui/home/home_screen.dart
 //
-// Personalized home. Sections are backed by REAL signals only — there is no
-// trending/home backend endpoint, so nothing is fabricated:
+// Personalized home. Sections are backed by REAL signals only:
 //   • greeting        → local time of day
 //   • Recently Played → PlayerController.searchHistory (tracks you've played)
-//   • Made For You    → RecommendationService seeded from your latest track
+//   • Made For You    → curated mixes from the saragama /mixes endpoint
 //   • Your Playlists  → LibraryService.getPlaylists()
 //   • Liked Songs     → LibraryService.getLiked()
 // Playback is delegated to PlayerController.playWithRecommendations / playAll.
@@ -14,42 +13,35 @@ import 'package:flutter/material.dart';
 
 import '../../controllers/player_controller.dart';
 import '../../services/library_service.dart';
-import '../../services/recommendation_service.dart';
+import '../../services/mixes_service.dart';
 import '../../services/thumb_util.dart';
 import '../app_theme.dart';
 import '../library/library_screen.dart';
 import '../theme/glass.dart';
 import '../ui_helpers.dart';
 import '../widgets/common_widgets.dart';
+import 'mix_detail_screen.dart';
 
 // ── Controller ───────────────────────────────────────────────────────────────
 
 class HomeController extends GetxController {
-  final madeForYou = <RecommendedTrack>[].obs;
-  final loadingRecs = false.obs;
+  /// Curated mixes for the "Made For You" section (saragama /mixes endpoint).
+  final mixes = <Mix>[].obs;
+  final loadingMixes = false.obs;
 
   @override
   void onInit() {
     super.onInit();
-    loadMadeForYou();
+    loadMixes();
   }
 
-  /// Seeds "Made For You" from the most recent track the user interacted with
-  /// (search history first, then liked songs). No seed → nothing to recommend.
-  Future<void> loadMadeForYou() async {
-    final pc = Get.find<PlayerController>();
-    final seed = pc.searchHistory.isNotEmpty
-        ? pc.searchHistory.first.videoId
-        : (LibraryService.getLiked().isNotEmpty
-            ? LibraryService.getLiked().first.videoId
-            : null);
-    if (seed == null) return;
-    loadingRecs.value = true;
+  Future<void> loadMixes({bool forceRefresh = false}) async {
+    loadingMixes.value = true;
     try {
-      madeForYou.assignAll(
-          await RecommendationService.getRecommendations(seed));
+      mixes.assignAll(
+          await MixesService.getMixes(forceRefresh: forceRefresh));
     } finally {
-      loadingRecs.value = false;
+      loadingMixes.value = false;
     }
   }
 }
@@ -67,7 +59,7 @@ class HomeScreen extends StatelessWidget {
     return RefreshIndicator(
       color: Colors.white,
       backgroundColor: AppColors.card,
-      onRefresh: home.loadMadeForYou,
+      onRefresh: () => home.loadMixes(forceRefresh: true),
       child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(child: _Header()),
@@ -95,30 +87,26 @@ class HomeScreen extends StatelessWidget {
               );
             }),
           ),
-          // ── Made For You ─────────────────────────────────────────────
+          // ── Made For You (curated mixes) ─────────────────────────────
           SliverToBoxAdapter(
             child: Obx(() {
-              if (home.loadingRecs.value && home.madeForYou.isEmpty) {
+              if (home.loadingMixes.value && home.mixes.isEmpty) {
                 return const _CarouselSkeleton(title: 'Made For You');
               }
-              if (home.madeForYou.isEmpty) return const SizedBox.shrink();
+              if (home.mixes.isEmpty) return const SizedBox.shrink();
               return _Carousel(
                 title: 'Made For You',
                 cardSize: 190,
-                children: home.madeForYou.map((t) {
+                children: home.mixes.map((m) {
                   return ArtCard(
-                    imageUrl: sizedThumb(t.thumbnail, ThumbnailSize.card),
-                    title: t.title,
-                    subtitle: t.artist,
-                    overline: 'FOR YOU',
+                    // mix.image is a saragama mood image — used as-is.
+                    imageUrl: m.image,
+                    title: m.title,
+                    subtitle: '${m.trackCount} songs',
+                    overline: 'MIX',
                     size: 190,
-                    onTap: () => pc.playWithRecommendations(
-                      t.videoId,
-                      title: t.title,
-                      artist: t.artist,
-                      thumbnail: t.thumbnail,
-                      duration: t.durationValue,
-                    ),
+                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => MixDetailScreen(mix: m))),
                   );
                 }).toList(),
               );
@@ -129,7 +117,8 @@ class HomeScreen extends StatelessWidget {
           // ── Empty fallback for a brand-new install ──────────────────
           SliverToBoxAdapter(child: Obx(() {
             final blank = pc.searchHistory.isEmpty &&
-                home.madeForYou.isEmpty &&
+                home.mixes.isEmpty &&
+                !home.loadingMixes.value &&
                 LibraryService.getPlaylists().isEmpty &&
                 LibraryService.getLiked().isEmpty;
             if (!blank) return const SizedBox.shrink();

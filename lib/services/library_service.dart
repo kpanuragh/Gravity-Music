@@ -150,6 +150,27 @@ class LibraryService {
     return pl;
   }
 
+  /// Creates a playlist pre-populated with [tracks] in a single write (used by
+  /// playlist import — avoids one box write per track). Duplicate video IDs are
+  /// dropped, order preserved.
+  static LocalPlaylist createPlaylistWithTracks(
+      String name, List<LibraryTrack> tracks) {
+    final seen = <String>{};
+    final unique = <LibraryTrack>[];
+    for (final t in tracks) {
+      if (t.videoId.isNotEmpty && seen.add(t.videoId)) unique.add(t);
+    }
+    final pl = LocalPlaylist(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name,
+      createdAt: DateTime.now(),
+      tracks: unique,
+    );
+    final all = getPlaylists()..insert(0, pl);
+    _savePlaylists(all);
+    return pl;
+  }
+
   static void deletePlaylist(String id) {
     final all = getPlaylists()..removeWhere((p) => p.id == id);
     _savePlaylists(all);

@@ -27,10 +27,14 @@ class ThumbUtil {
     final upgraded = url
         .replaceAll(RegExp(r'=w\d+-h\d+[^&\s]*$'), '=$params')
         .replaceAll(RegExp(r'=s\d+[^&\s]*$'), '=$params');
-    if (upgraded == url && !url.contains('=$params')) {
-      return '$url=$params';
-    }
-    return upgraded;
+    if (upgraded != url) return upgraded; // had a size param → swapped it
+    if (url.contains('=$params')) return url; // already the requested size
+    // Only Google CDN URLs accept an appended =wW-hH size param. Other hosts
+    // (i.ytimg.com/*.jpg fixed-size frames, saragama mood PNGs, etc.) break if
+    // we append one, so leave them untouched.
+    final isGoogleSizable =
+        url.contains('googleusercontent.com') || url.contains('ggpht.com');
+    return isGoogleSizable ? '$url=$params' : url;
   }
 
   // Convenience: upgrade a URL that was already sized for a different context.

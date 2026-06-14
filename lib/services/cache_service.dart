@@ -17,8 +17,10 @@ import 'package:hive/hive.dart';
 class CacheService {
   static const _boxName         = 'CacheBox';
   static const _homeKey         = 'home';
+  static const _mixesKey        = 'mixes';
   static const _homeTtlMinutes  = 120;   // 2 hours
   static const _plTtlMinutes    = 1440;  // 24 hours
+  static const _mixesTtlMinutes = 1440;  // 24 hours
 
   static Box get _box => Hive.box(_boxName);
 
@@ -107,6 +109,21 @@ class CacheService {
   /// Saves playlist detail to persistent cache.
   static void savePlaylist(String id, Map<String, dynamic> json) =>
       _write(_plKey(id), json);
+
+  // ── Mixes ("Made For You") ───────────────────────────────────────────────────
+
+  /// Returns fresh (within 24hr) cached mixes payload, or null if missing/stale.
+  static Map<String, dynamic>? getFreshMixes() =>
+      _read(_mixesKey, _mixesTtlMinutes);
+
+  /// Returns cached mixes regardless of age (offline / stale fallback).
+  static Map<String, dynamic>? getAnyMixes() => _readAny(_mixesKey);
+
+  /// Saves the raw /mixes response payload to persistent cache.
+  static void saveMixes(Map<String, dynamic> json) => _write(_mixesKey, json);
+
+  /// Clears the mixes cache (forces next load to re-fetch).
+  static void clearMixes() => _box.delete(_mixesKey);
 
   // ── Utility ─────────────────────────────────────────────────────────────────
 

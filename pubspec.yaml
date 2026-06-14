@@ -43,12 +43,30 @@ dev_dependencies:
     sdk: flutter
 
   flutter_launcher_icons: ^0.14.0
+  flutter_native_splash: ^2.4.4
 
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/app_icon.png"
   remove_alpha_ios: true
+
+# Clean logo-on-black splash (Apple Music / Spotify style). The Android 12+
+# section overrides the OS default splash (which otherwise shows the launcher
+# icon on a white circle). We're always a dark app, so light/dark are identical.
+flutter_native_splash:
+  color: "#000000"
+  image: assets/splash_logo.png
+  color_dark: "#000000"
+  image_dark: assets/splash_logo.png
+  android_12:
+    color: "#000000"
+    image: assets/splash_logo.png
+    color_dark: "#000000"
+    image_dark: assets/splash_logo.png
+  android: true
+  ios: true
+  web: false
 
 flutter:
   uses-material-design: true

@@ -28,6 +28,36 @@ import '../theme/glass.dart';
 import '../theme/motion.dart';
 import '../ui_helpers.dart';
 
+/// Wraps a pushed full-screen route's body with the floating mini-player
+/// docked at the bottom. The root dock (RootShell) is covered by pushed
+/// routes, so detail screens (playlist, liked, downloads, mixes) re-dock one
+/// here for continuity. Content should reserve ~96px of bottom padding.
+class ScreenWithMiniPlayer extends StatelessWidget {
+  final Widget child;
+  const ScreenWithMiniPlayer({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        child,
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: SafeArea(
+            top: false,
+            child: const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: MiniPlayer(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class MiniPlayer extends StatelessWidget {
   const MiniPlayer({super.key});
 
@@ -138,11 +168,11 @@ class _Bar extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(song.title,
+                                Text(prettyTitle(song.title),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: AppText.title(size: 14)),
-                                Text(song.artist ?? '',
+                                Text(prettyTitle(song.artist ?? ''),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: AppText.subtitle(size: 12)),

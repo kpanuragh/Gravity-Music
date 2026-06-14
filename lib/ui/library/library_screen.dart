@@ -17,6 +17,7 @@ import '../theme/glass.dart';
 import '../ui_helpers.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/mini_player.dart';
+import 'import_playlist.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -89,7 +90,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
           padding: const EdgeInsets.fromLTRB(AppSpacing.screenMargin,
               AppSpacing.stackMd, AppSpacing.screenMargin, 0),
           sliver: SliverToBoxAdapter(
-            child: SectionHeader(title: 'Playlists'),
+            child: SectionHeader(
+              title: 'Playlists',
+              actionLabel: 'Import',
+              onAction: () => showImportPlaylistSheet(context),
+            ),
           ),
         ),
         if (playlists.isEmpty)
@@ -230,38 +235,6 @@ class _LibraryRow extends StatelessWidget {
   }
 }
 
-// ── Docked mini-player ───────────────────────────────────────────────────────
-
-/// Overlays the floating mini-player at the bottom of a pushed full-screen
-/// route (Liked Songs / Playlist detail). The root mini-player lives in
-/// RootShell and is covered by these routes, so we re-dock one here for
-/// continuity. Content should reserve ~96px of bottom padding.
-class _WithMiniPlayer extends StatelessWidget {
-  final Widget child;
-  const _WithMiniPlayer({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        child,
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: const MiniPlayer(),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 // ── Liked Songs ────────────────────────────────────────────────────────────
 
 class LikedSongsScreen extends StatelessWidget {
@@ -274,7 +247,7 @@ class LikedSongsScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      body: _WithMiniPlayer(
+      body: ScreenWithMiniPlayer(
         child: CustomScrollView(
         slivers: [
           SliverAppBar(
@@ -357,7 +330,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      body: _WithMiniPlayer(
+      body: ScreenWithMiniPlayer(
         child: CustomScrollView(
         slivers: [
           SliverAppBar(
@@ -482,7 +455,7 @@ class DownloadsScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      body: _WithMiniPlayer(
+      body: ScreenWithMiniPlayer(
         child: Obx(() {
           final downloads = dc.downloads;
           final downloading = dc.downloading;

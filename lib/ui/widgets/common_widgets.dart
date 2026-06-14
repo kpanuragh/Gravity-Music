@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
 import '../theme/motion.dart';
+import '../ui_helpers.dart';
 
 /// "PLAYLIST" / "RECENTLY PLAYED" style section heading with optional action.
 class SectionHeader extends StatelessWidget {
@@ -134,12 +135,12 @@ class ArtCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.stackSm),
-            Text(title,
+            Text(prettyTitle(title),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppText.title(size: 14)),
             if (subtitle != null)
-              Text(subtitle!,
+              Text(prettyTitle(subtitle!),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppText.subtitle(size: 12)),
@@ -190,7 +191,7 @@ class TrackTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(title,
+                  Text(prettyTitle(title),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppText.title(
@@ -199,7 +200,7 @@ class TrackTile extends StatelessWidget {
                               ? AppColors.white
                               : AppColors.textPrimary)),
                   const SizedBox(height: 2),
-                  Text(subtitle,
+                  Text(prettyTitle(subtitle),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppText.subtitle(size: 13)),

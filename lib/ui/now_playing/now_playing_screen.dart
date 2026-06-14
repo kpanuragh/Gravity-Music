@@ -166,12 +166,12 @@ class _PlayerBodyState extends State<_PlayerBody>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(song?.title ?? 'Nothing playing',
+                        Text(prettyTitle(song?.title ?? 'Nothing playing'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppText.heading(size: 26)),
                         const SizedBox(height: 4),
-                        Text(song?.artist ?? '',
+                        Text(prettyTitle(song?.artist ?? ''),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppText.subtitle(
