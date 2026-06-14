@@ -11,7 +11,8 @@ Gravity Music is the successor to **Saragama**, rebuilt from the ground up with 
 - **Home** — recently played, personalized "Mixes" recommendations refreshed daily, and your playlists
 - **Search** — search YouTube for any song, artist, or genre
 - **Library** — liked songs, custom playlists, and offline downloads
-- **Playlist import** — import playlists directly from Spotify or Apple Music links
+- **Offline playlists** — download an entire playlist for offline listening in the background, with progress and completion badges on the playlist tile
+- **Playlist import** — import playlists directly from Spotify or Apple Music links, running in the background while you keep listening
 - **Now Playing** — full-screen player with synced lyrics, queue management, shuffle/loop, sleep timer, and streaming quality toggle
 - **Background playback** — lock-screen and notification controls with high-resolution artwork, loudness normalization, and session restore across app restarts
 - **Android Auto** — browse and play your playlists from the car
@@ -47,4 +48,4 @@ The playback stack is split into focused layers:
 - **`PlayerController`** — GetX controller exposing playback state to the UI, session save/restore, likes, search history, sleep timer
 - **`LyricsController`** — fetches and syncs lyrics from lrclib.net
 
-Stream URLs are resolved with a cache-first strategy (cached file → downloaded file → cached URL → fresh fetch via an isolate), modeled by `HMStreamingData`.
+Stream URLs are resolved with a cache-first strategy (cached file → downloaded file → playlist-downloaded file → cached URL → fresh fetch via an isolate), modeled by `HMStreamingData`.
