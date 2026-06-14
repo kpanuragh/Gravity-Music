@@ -67,9 +67,16 @@ class ArtImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final br = BorderRadius.circular(radius);
-    return Container(
-      width: size,
-      height: size,
+    // `size: double.infinity` means "fill the available width as a square"
+    // (used inside grids, e.g. the Library playlists grid). A fixed height of
+    // infinity would be an unbounded-constraint error inside a Column, so in
+    // that case we size with AspectRatio(1) and a fixed fallback icon size.
+    final bool fill = !size.isFinite;
+    final double iconSize = fill ? 44 : size * 0.38;
+
+    final container = Container(
+      width: fill ? double.infinity : size,
+      height: fill ? double.infinity : size,
       decoration: BoxDecoration(
         borderRadius: br,
         color: AppColors.card,
@@ -79,18 +86,21 @@ class ArtImage extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: url.isEmpty
-          ? Icon(Icons.music_note_rounded,
-              color: AppColors.textTertiary, size: size * 0.38)
+          ? Center(
+              child: Icon(Icons.music_note_rounded,
+                  color: AppColors.textTertiary, size: iconSize))
           : CachedNetworkImage(
               imageUrl: url,
-              width: size,
-              height: size,
               fit: fit,
               placeholder: (_, __) => Container(color: AppColors.card),
-              errorWidget: (_, __, ___) => Icon(Icons.music_note_rounded,
-                  color: AppColors.textTertiary, size: size * 0.38),
+              errorWidget: (_, __, ___) => Center(
+                child: Icon(Icons.music_note_rounded,
+                    color: AppColors.textTertiary, size: iconSize),
+              ),
             ),
     );
+
+    return fill ? AspectRatio(aspectRatio: 1, child: container) : container;
   }
 }
 
