@@ -25,6 +25,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/hm_streaming_data.dart';
 import '../services/background_task.dart';
 import '../services/download_service.dart';
+import '../services/playlist_download_service.dart';
 import '../services/library_service.dart';
 import '../services/playback_engine.dart';
 import '../services/queue_manager.dart';
@@ -292,7 +293,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     final index = _getNextSongIndex();
     if (index != currentIndex) {
       if (_engine.player.position != Duration.zero) {
-        _engine.player.seek(Duration.zero);
+        await _engine.player.seek(Duration.zero);
       }
       await customAction('playByIndex', {'index': index});
       return;
@@ -311,14 +312,20 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
     }
   }
 
+  // How far into the current track "previous" restarts it instead of going
+  // back a song. Standard music-player behavior (Spotify/Apple use ~3s).
+  static const _prevRestartThresholdMs = 3000;
+
   @override
   Future<void> skipToPrevious() async {
-    // HarmonyMusic: if >5 s played, restart current song
-    if (_engine.player.position.inMilliseconds > 5000) {
-      _engine.player.seek(Duration.zero);
+    // If we're past the threshold, restart the current song rather than
+    // jumping back. Await the seek so the position/progress bar is actually
+    // at zero before we return (an un-awaited seek can flash the old time).
+    if (_engine.player.position.inMilliseconds > _prevRestartThresholdMs) {
+      await _engine.player.seek(Duration.zero);
       return;
     }
-    _engine.player.seek(Duration.zero);
+    await _engine.player.seek(Duration.zero);
     final index = _getPrevSongIndex();
     if (index != currentIndex) {
       await customAction('playByIndex', {'index': index});
@@ -362,8 +369,10 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
   void _prefetchNext() {
     try {
       final q = queue.value;
-      final nextIdx = currentIndex + 1;
-      if (nextIdx >= q.length) return;
+      // Shuffle-aware peek (non-mutating) so we warm the cache for the song
+      // that will ACTUALLY play next, not just currentIndex + 1.
+      final nextIdx = _queueMgr.peekNextIndex(q, currentIndex);
+      if (nextIdx == null || nextIdx < 0 || nextIdx >= q.length) return;
       final nextId = q[nextIdx].id;
       // Fire and forget — just warms the cache
       checkNGetUrl(nextId).catchError((_) {});
@@ -392,6 +401,25 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
           duration: 0,
           loudnessDb: DownloadService.loudnessFor(videoId),
           url: offlineUrl,
+          size: 0,
+        ),
+      );
+    }
+
+    // 0b. Playlist offline download — same offline-first benefit, but stored
+    //     separately so it never shows up in the Downloads tab.
+    final playlistOfflineUrl = PlaylistDownloadService.playbackUrlFor(videoId);
+    if (playlistOfflineUrl != null) {
+      return HMStreamingData(
+        playable: true,
+        statusMSG: 'OK',
+        highQualityAudio: Audio(
+          itag: 140,
+          audioCodec: Codec.mp4a,
+          bitrate: 0,
+          duration: 0,
+          loudnessDb: PlaylistDownloadService.loudnessFor(videoId),
+          url: playlistOfflineUrl,
           size: 0,
         ),
       );
@@ -758,6 +786,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         // Reset queue state for ordered playback (clears shuffle, etc.)
         _queueMgr.reset();
         Hive.box('AppPrefs').put('shuffleMode', false);
+        Get.find<PlayerController>().syncShuffleDisabled();
 
         // Stop current playback and clear audio source list
         await _engine.player.stop();
@@ -818,6 +847,7 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         // This is a one-shot shuffled queue; do not enable global shuffle mode.
         _queueMgr.reset();
         Hive.box('AppPrefs').put('shuffleMode', false);
+        Get.find<PlayerController>().syncShuffleDisabled();
 
         await _engine.player.stop();
         await _engine.playList.clear();

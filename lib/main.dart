@@ -4,8 +4,10 @@ import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'controllers/download_controller.dart';
+import 'controllers/import_controller.dart';
 import 'controllers/lyrics_controller.dart';
 import 'controllers/player_controller.dart';
+import 'controllers/playlist_download_controller.dart';
 import 'services/audio_handler.dart';
 import 'services/battery_optimization.dart';
 import 'ui/app_theme.dart';
@@ -36,6 +38,14 @@ void main() async {
 
   // Offline downloads (file persistence + reactive progress/list).
   Get.put(DownloadController());
+
+  // Background playlist import (non-blocking; renders placeholder tiles in
+  // the Library while imports resolve).
+  Get.put(ImportController());
+
+  // Background playlist offline downloads (separate from the per-track
+  // Downloads tab; drives the tile download badges).
+  Get.put(PlaylistDownloadController());
 
 // Listen to song changes and auto-fetch lyrics
 ever(Get.find<PlayerController>().currentSong, (song) {

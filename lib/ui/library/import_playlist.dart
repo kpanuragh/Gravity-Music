@@ -14,17 +14,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
+import '../../controllers/import_controller.dart';
 import '../../services/import_service.dart';
-import '../../services/library_service.dart';
-import '../../services/search_service.dart';
 import '../app_theme.dart';
 import '../theme/glass.dart';
-import '../theme/motion.dart';
 import '../ui_helpers.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/mini_player.dart';
-import 'library_screen.dart';
 
 // ── Step 1: paste-URL bottom sheet ───────────────────────────────────────────
 
@@ -228,10 +226,23 @@ class ImportPreviewScreen extends StatelessWidget {
     );
     if (name == null || name.isEmpty) return;
     if (!context.mounted) return;
-    Navigator.of(context).pushReplacement(MaterialPageRoute(
-      builder: (_) =>
-          ImportProgressScreen(url: url, name: name, details: details),
-    ));
+
+    // Kick the import off in the background and return the user to the Library
+    // immediately — importing must never hold them from listening to music.
+    Get.find<ImportController>().startImport(
+      url: url,
+      name: name,
+      songCount: details.songCount,
+      estimatedSeconds: details.estimatedSeconds,
+    );
+
+    Navigator.of(context).pop(); // back to Library
+    Get.snackbar(
+      'Importing playlist',
+      '“$name” will appear in your library shortly.',
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 3),
+    );
   }
 
   @override
@@ -355,215 +366,6 @@ Future<String?> _promptPlaylistName(BuildContext context,
   );
 }
 
-// ── Step 5/6: import + simulated progress ───────────────────────────────────
-
-class ImportProgressScreen extends StatefulWidget {
-  final String url;
-  final String name;
-  final PlaylistImportDetails details;
-  const ImportProgressScreen({
-    super.key,
-    required this.url,
-    required this.name,
-    required this.details,
-  });
-
-  @override
-  State<ImportProgressScreen> createState() => _ImportProgressScreenState();
-}
-
-class _ImportProgressScreenState extends State<ImportProgressScreen> {
-  static const _holdCap = 0.95; // hold here until the import actually finishes
-
-  double _progress = 0;
-  bool _done = false;
-  bool _error = false;
-  String _errMsg = '';
-  Timer? _ticker;
-  DateTime _start = DateTime.now();
-
-  @override
-  void initState() {
-    super.initState();
-    _begin();
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    super.dispose();
-  }
-
-  void _begin() {
-    _error = false;
-    _done = false;
-    _progress = 0;
-    _start = DateTime.now();
-    final estSec = widget.details.estimatedSeconds.clamp(1, 600);
-
-    // Simulated progress: smooth 0 → 95% across the estimated time. Capped at
-    // 95% so it visibly "waits" if the import runs long; jumps to 100% the
-    // moment the real import completes.
-    _ticker = Timer.periodic(const Duration(milliseconds: 50), (_) {
-      if (_done || _error) return;
-      final elapsed =
-          DateTime.now().difference(_start).inMilliseconds / 1000.0;
-      final p = (elapsed / estSec).clamp(0.0, _holdCap);
-      setState(() => _progress = p);
-    });
-
-    _runImport();
-  }
-
-  Future<void> _runImport() async {
-    try {
-      final songs = await ImportService.importPlaylist(
-        widget.url,
-        estimatedSeconds: widget.details.estimatedSeconds,
-      );
-      if (songs.isEmpty) {
-        throw const ImportException(
-            'No songs could be imported from this playlist.');
-      }
-
-      // Funnel into the EXISTING playlist architecture — identical to a
-      // manually-created playlist from here on.
-      final tracks =
-          songs.map((SearchResult s) => s.toLibraryTrack()).toList();
-      final playlist =
-          LibraryService.createPlaylistWithTracks(widget.name, tracks);
-
-      _ticker?.cancel();
-      _done = true;
-      await _finishBar();
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(MaterialPageRoute(
-        builder: (_) => PlaylistDetailScreen(playlistId: playlist.id),
-      ));
-    } on ImportException catch (e) {
-      _fail(e.message);
-    } catch (_) {
-      _fail('Import failed. Please try again.');
-    }
-  }
-
-  void _fail(String msg) {
-    _ticker?.cancel();
-    if (!mounted) return;
-    setState(() {
-      _error = true;
-      _errMsg = msg;
-    });
-  }
-
-  /// Quickly run the bar from its current value up to 100%.
-  Future<void> _finishBar() async {
-    final from = _progress;
-    const steps = 16;
-    for (var i = 1; i <= steps; i++) {
-      if (!mounted) return;
-      await Future.delayed(const Duration(milliseconds: 20));
-      setState(() => _progress = from + (1.0 - from) * (i / steps));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.stackLg),
-          child: Center(
-            child: _error ? _errorView() : _progressView(),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _progressView() {
-    final pct = (_progress * 100).round();
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 96,
-          height: 96,
-          decoration: BoxDecoration(
-            color: AppColors.card,
-            borderRadius: BorderRadius.circular(AppRadius.xl),
-          ),
-          child: Icon(
-            _done ? Icons.check_rounded : Icons.library_music_rounded,
-            size: 44,
-            color: _done ? Colors.greenAccent : Colors.white,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.stackMd),
-        Text(widget.name,
-            textAlign: TextAlign.center, style: AppText.heading(size: 22)),
-        const SizedBox(height: 6),
-        Text(
-          _done ? 'Finishing up…' : 'Importing ${widget.details.songCount} songs…',
-          style: AppText.subtitle(size: 14),
-        ),
-        const SizedBox(height: AppSpacing.stackMd),
-        // Progress bar.
-        ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-          child: Stack(
-            children: [
-              Container(height: 6, color: AppColors.glassFillActive),
-              AnimatedFractionallySizedBox(
-                duration: AppMotion.fast,
-                curve: AppMotion.standardCurve,
-                widthFactor: _progress.clamp(0.0, 1.0),
-                child: Container(height: 6, color: AppColors.accent),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text('$pct%', style: AppText.caption(color: AppColors.textSecondaryHi)),
-      ],
-    );
-  }
-
-  Widget _errorView() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(Icons.error_outline_rounded,
-            size: 56, color: AppColors.textTertiary),
-        const SizedBox(height: AppSpacing.gutter),
-        Text('Import failed', style: AppText.heading(size: 20)),
-        const SizedBox(height: AppSpacing.stackSm),
-        Text(_errMsg,
-            textAlign: TextAlign.center, style: AppText.subtitle(size: 14)),
-        const SizedBox(height: AppSpacing.stackMd),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 130,
-              child: SecondaryButton(
-                label: 'Back',
-                onTap: () => Navigator.of(context).maybePop(),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.gutter),
-            SizedBox(
-              width: 130,
-              child: PrimaryButton(
-                label: 'Retry',
-                icon: Icons.refresh_rounded,
-                onTap: () => setState(_begin),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
+// Step 5/6 (the old full-screen ImportProgressScreen) is gone — imports now run
+// in the background via ImportController and surface as placeholder tiles in
+// the Library grid, so the user is never held on a progress screen.

@@ -214,6 +214,16 @@ class PlayerController extends GetxController {
     );
   }
 
+  /// Called by the audio handler when it resets shuffle internally — e.g.
+  /// playAllFrom / playShuffled replace the queue with ordered (or one-shot
+  /// pre-shuffled) playback and turn the engine's shuffle mode off. Without
+  /// this the UI toggle would stay lit while the engine plays in order.
+  void syncShuffleDisabled() {
+    if (!isShuffleEnabled.value) return;
+    isShuffleEnabled.value = false;
+    playerState.value = playerState.value.copyWith(isShuffleEnabled: false);
+  }
+
   void toggleQuality() {
     isHighQuality.value = !isHighQuality.value;
     Hive.box('AppPrefs').put('streamingQuality', isHighQuality.value ? 1 : 0);

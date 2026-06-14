@@ -10,9 +10,13 @@
 // playback orchestration). QueueManager handles the in-memory shuffle
 // permutation, queue-loop wraparound, and prev/next index computation.
 
+import 'dart:math';
+
 import 'package:audio_service/audio_service.dart';
 
 class QueueManager {
+  final Random _rng = Random();
+
   // ── Modes ────────────────────────────────────────────────────────────
   bool shuffleEnabled = false;
   bool queueLoopEnabled = false;
@@ -47,6 +51,24 @@ class QueueManager {
         _shuffleIndex += 1;
       }
       final id = _shuffledIds[_shuffleIndex];
+      final idx = items.indexWhere((i) => i.id == id);
+      return idx == -1 ? null : idx;
+    }
+    if (items.length > currentIndex + 1) return currentIndex + 1;
+    if (queueLoopEnabled && items.isNotEmpty) return 0;
+    return null;
+  }
+
+  /// Read-only peek at the index `nextIndex()` WOULD return next, WITHOUT the
+  /// side effect of advancing the shuffle cursor. Used for prefetching the
+  /// upcoming track's URL. Returns null at the end of the shuffle permutation
+  /// (the real advance would reshuffle, so there's nothing stable to prefetch).
+  int? peekNextIndex(List<MediaItem> items, int currentIndex) {
+    if (shuffleEnabled) {
+      if (_shuffledIds.isEmpty || _shuffleIndex + 1 >= _shuffledIds.length) {
+        return null;
+      }
+      final id = _shuffledIds[_shuffleIndex + 1];
       final idx = items.indexWhere((i) => i.id == id);
       return idx == -1 ? null : idx;
     }
@@ -110,10 +132,24 @@ class QueueManager {
   // its shuffled permutation in sync when items are added, removed, or
   // inserted in the canonical queue.
 
-  /// Items appended to the queue. Extend the shuffled list (no reshuffle).
+  /// Items appended to the canonical queue (e.g. autoplay refill). Mix each
+  /// new track into a RANDOM position within the not-yet-played remainder of
+  /// the permutation, rather than appending in arrival order. Otherwise — in
+  /// the common "play one song → autoplay grows the queue" flow — the whole
+  /// play order would just be the arrival order and shuffle would have no
+  /// audible effect.
   void onItemsAdded(List<MediaItem> newItems) {
     if (!shuffleEnabled) return;
-    _shuffledIds.addAll(newItems.map((i) => i.id));
+    for (final item in newItems) {
+      // Candidate slots are [_shuffleIndex + 1 .. length] (inclusive of the
+      // end, so a track can also land last). Already-played slots (<= cursor)
+      // are never disturbed.
+      final lower = _shuffleIndex + 1;
+      final pos = lower >= _shuffledIds.length
+          ? _shuffledIds.length
+          : lower + _rng.nextInt(_shuffledIds.length - lower + 1);
+      _shuffledIds.insert(pos, item.id);
+    }
   }
 
   /// An item was removed from the queue. Adjust the shuffled list and

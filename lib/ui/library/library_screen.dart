@@ -9,7 +9,9 @@ import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../controllers/download_controller.dart';
+import '../../controllers/import_controller.dart';
 import '../../controllers/player_controller.dart';
+import '../../controllers/playlist_download_controller.dart';
 import '../../services/library_service.dart';
 import '../../services/thumb_util.dart';
 import '../app_theme.dart';
@@ -27,7 +29,27 @@ class LibraryScreen extends StatefulWidget {
 }
 
 class _LibraryScreenState extends State<LibraryScreen> {
+  final _import = Get.find<ImportController>();
+  Worker? _jobsWorker;
+
   void _refresh() => setState(() {});
+
+  @override
+  void initState() {
+    super.initState();
+    // Rebuild (coarsely) when an import is added / removed / fails, so its
+    // placeholder tile appears or disappears. Per-tile progress updates ride
+    // on the tile's own Obx, so this doesn't fire every animation frame.
+    _jobsWorker = ever(_import.jobs, (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _jobsWorker?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +65,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Widget _buildContent(BuildContext context) {
     final liked = LibraryService.getLiked();
     final playlists = LibraryService.getPlaylists();
+    final jobs = _import.jobs.toList();
 
     return CustomScrollView(
       slivers: [
@@ -97,7 +120,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             ),
           ),
         ),
-        if (playlists.isEmpty)
+        if (playlists.isEmpty && jobs.isEmpty)
           const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.only(top: 40),
@@ -122,21 +145,40 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ),
               delegate: SliverChildBuilderDelegate(
                 (_, i) {
-                  final pl = playlists[i];
-                  return ArtCard(
-                    imageUrl: sizedThumb(pl.thumbnailUrl, ThumbnailSize.card),
-                    title: pl.name,
-                    subtitle: '${pl.tracks.length} songs',
-                    size: double.infinity,
-                    onTap: () async {
-                      await Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) =>
-                              PlaylistDetailScreen(playlistId: pl.id)));
-                      _refresh();
-                    },
+                  // In-progress imports render first as placeholder tiles, then
+                  // the real playlists.
+                  if (i < jobs.length) {
+                    return _ImportingTile(job: jobs[i]);
+                  }
+                  final pl = playlists[i - jobs.length];
+                  return Stack(
+                    children: [
+                      ArtCard(
+                        imageUrl:
+                            sizedThumb(pl.thumbnailUrl, ThumbnailSize.card),
+                        title: pl.name,
+                        subtitle: '${pl.tracks.length} songs',
+                        size: double.infinity,
+                        onTap: () async {
+                          await Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) =>
+                                  PlaylistDetailScreen(playlistId: pl.id)));
+                          _refresh();
+                        },
+                      ),
+                      // Small offline-download indicator over the cover's
+                      // top-right corner (purely informational).
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: IgnorePointer(
+                          child: _PlaylistDownloadBadge(playlistId: pl.id),
+                        ),
+                      ),
+                    ],
                   );
                 },
-                childCount: playlists.length,
+                childCount: jobs.length + playlists.length,
               ),
             ),
           ),
@@ -173,6 +215,214 @@ class _LibraryScreenState extends State<LibraryScreen> {
       LibraryService.createPlaylist(name);
       _refresh();
     }
+  }
+}
+
+/// Placeholder tile for an in-progress (or failed) playlist import. Shows a
+/// progress ring as the cover while importing; on failure becomes a tap-to-
+/// retry tile with a dismiss button. Replaced by a real ArtCard once the
+/// import resolves and saves a LocalPlaylist.
+class _ImportingTile extends StatelessWidget {
+  final ImportJob job;
+  const _ImportingTile({required this.job});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final failed = job.failed.value;
+      final progress = job.progress.value;
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: failed ? () => Get.find<ImportController>().retry(job) : null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AspectRatio(
+              aspectRatio: 1,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  children: [
+                    Center(
+                      child: failed
+                          ? Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.refresh_rounded,
+                                    color: AppColors.textSecondaryHi, size: 34),
+                                const SizedBox(height: 8),
+                                Text('Tap to retry',
+                                    style: AppText.caption(
+                                        color: AppColors.textSecondaryHi)),
+                              ],
+                            )
+                          : Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 46,
+                                  height: 46,
+                                  child: CircularProgressIndicator(
+                                    value: progress <= 0 ? null : progress,
+                                    strokeWidth: 3,
+                                    color: AppColors.accent,
+                                    backgroundColor: AppColors.glassFillActive,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Text('${(progress * 100).round()}%',
+                                    style: AppText.caption(
+                                        color: AppColors.textSecondaryHi)),
+                              ],
+                            ),
+                    ),
+                    if (failed)
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: GestureDetector(
+                          onTap: () =>
+                              Get.find<ImportController>().dismiss(job),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close_rounded,
+                                size: 16, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.stackSm),
+            Text(prettyTitle(job.name),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.title(size: 14)),
+            Text(failed ? 'Import failed' : 'Importing…',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.subtitle(size: 12)),
+          ],
+        ),
+      );
+    });
+  }
+}
+
+/// Small offline-download indicator shown on a playlist tile's cover.
+/// • downloading → a download arrow inside a circular progress ring (fraction
+///   of songs fetched); • fully downloaded → a small "downloaded" check.
+/// Nothing is shown when the playlist isn't downloaded at all.
+class _PlaylistDownloadBadge extends StatelessWidget {
+  final String playlistId;
+  const _PlaylistDownloadBadge({required this.playlistId});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Get.find<PlaylistDownloadController>();
+    return Obx(() {
+      final downloading = c.isDownloading(playlistId);
+      final downloaded = c.isDownloaded(playlistId);
+      if (!downloading && !downloaded) return const SizedBox.shrink();
+
+      return Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.55),
+          shape: BoxShape.circle,
+        ),
+        child: downloading
+            ? Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      value: c.progressFor(playlistId) <= 0
+                          ? null
+                          : c.progressFor(playlistId),
+                      strokeWidth: 2,
+                      color: AppColors.accent,
+                      backgroundColor: Colors.white24,
+                    ),
+                  ),
+                  const Icon(Icons.arrow_downward_rounded,
+                      size: 11, color: Colors.white),
+                ],
+              )
+            : const Icon(Icons.download_done_rounded,
+                size: 15, color: Colors.greenAccent),
+      );
+    });
+  }
+}
+
+/// Playlist-detail app-bar action: download / downloading / downloaded.
+/// Tapping starts a background download (or removes the offline copy when
+/// already downloaded). Never blocks playback.
+class _PlaylistDownloadAction extends StatelessWidget {
+  final LocalPlaylist playlist;
+  const _PlaylistDownloadAction({required this.playlist});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Get.find<PlaylistDownloadController>();
+    return Obx(() {
+      if (c.isDownloading(playlist.id)) {
+        final p = c.progressFor(playlist.id);
+        return Padding(
+          padding: const EdgeInsets.all(14),
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              value: p <= 0 ? null : p,
+              strokeWidth: 2,
+              color: AppColors.accent,
+              backgroundColor: Colors.white24,
+            ),
+          ),
+        );
+      }
+      final downloaded = c.isDownloaded(playlist.id);
+      return IconButton(
+        icon: Icon(
+          downloaded ? Icons.download_done_rounded : Icons.download_rounded,
+          color: downloaded ? Colors.greenAccent : Colors.white,
+        ),
+        onPressed: () {
+          if (downloaded) {
+            c.removeDownload(playlist);
+            Get.snackbar('Removed download',
+                'Offline copy of “${playlist.name}” deleted',
+                snackPosition: SnackPosition.BOTTOM,
+                backgroundColor: AppColors.card,
+                colorText: AppColors.white,
+                duration: const Duration(seconds: 2));
+          } else {
+            c.download(playlist);
+            Get.snackbar('Downloading playlist',
+                '“${playlist.name}” is downloading in the background',
+                snackPosition: SnackPosition.BOTTOM,
+                backgroundColor: AppColors.card,
+                colorText: AppColors.white,
+                duration: const Duration(seconds: 3));
+          }
+        },
+      );
+    });
   }
 }
 
@@ -339,6 +589,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             expandedHeight: 280,
             leading: const AppBackButton(),
             actions: [
+              _PlaylistDownloadAction(playlist: pl),
               IconButton(
                 icon: const Icon(Icons.delete_outline_rounded,
                     color: Colors.white),
