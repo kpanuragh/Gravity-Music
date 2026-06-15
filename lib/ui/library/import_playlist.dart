@@ -134,7 +134,6 @@ class _ImportUrlSheetState extends State<_ImportUrlSheet> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
-                      autofocus: true,
                       enabled: !_loading,
                       style: AppText.title(size: 14),
                       cursorColor: Colors.white,

@@ -268,7 +268,12 @@ class PlayerController extends GetxController {
 
   Future<void> playShuffledMedia(List<MediaItem> items) async {
     if (items.isEmpty) return;
-    await audioHandler.customAction('playShuffled', {'items': items});
+    // Randomize once before queue creation. The audio handler's
+    // 'playShuffled' action plays this list in the given order and leaves
+    // queue-level shuffle mode off, so later recommendation appends are
+    // never reshuffled.
+    final shuffled = List<MediaItem>.from(items)..shuffle();
+    await audioHandler.customAction('playShuffled', {'items': shuffled});
   }
 
   // ── Like / Unlike ─────────────────────────────────────────────────────────
