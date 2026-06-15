@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Release builds run R8 + the Android resource shrinker (enabled by the Flutter
+  Gradle plugin). The media-notification small icon `ic_stat_music` is only ever
+  referenced by NAME at runtime, inside audio_service, via
+  Resources.getIdentifier("drawable/ic_stat_music", ...). The shrinker's static
+  analysis can't see that reference, marks the drawable reachable=false, and
+  strips it from the release APK. The first time playback starts the foreground
+  service, NotificationManager.notify() then throws
+  "Invalid notification (no valid small icon)" and the whole process crashes —
+  the first-run / first-playback crash that fresh-install users hit.
+
+  tools:keep forces the shrinker to retain the icon while leaving shrinking on
+  for everything else.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_music" />
