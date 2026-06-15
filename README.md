@@ -4,6 +4,33 @@ A premium Android music streaming app with dynamic album-driven visuals, a float
 
 Gravity Music is the successor to **Saragama**, rebuilt from the ground up with a new design language, architecture, and feature set.
 
+<img src="media/banner.png" alt="Gravity Music Banner" />
+
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="media/home_screen.jpeg" width="250"/></td>
+    <td><img src="media/search_screen.jpeg" width="250"/></td>
+    <td><img src="media/library_screen.jpeg" width="250"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Home</b></td>
+    <td align="center"><b>Search</b></td>
+    <td align="center"><b>Library</b></td>
+  </tr>
+  <tr>
+    <td><img src="media/now_playing.jpeg" width="250"/></td>
+    <td><img src="media/playlist_screen.jpeg" width="250"/></td>
+    <td><img src="media/queue_screen.jpeg" width="250"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Now Playing</b></td>
+    <td align="center"><b>Playlist</b></td>
+    <td align="center"><b>Queue</b></td>
+  </tr>
+</table>
+
 ## Features
 
 - **Cinematic Dark UI** — obsidian glassmorphism design with floating navigation, a floating mini-player, and blurred translucent surfaces
