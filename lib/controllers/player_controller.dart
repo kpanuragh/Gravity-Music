@@ -376,6 +376,17 @@ class PlayerController extends GetxController {
 
   void notifyError(String msg) {
     errorMessage.value = msg;
+    // Surface the failure to the user — otherwise an unplayable song just
+    // stops with no explanation. (e.g. YouTube reports the source video as
+    // unavailable / removed / region-locked.)
+    final text = msg.trim().isEmpty ? "This song can't be played right now." : msg;
+    if (Get.isSnackbarOpen) Get.closeAllSnackbars();
+    Get.snackbar(
+      'Playback unavailable',
+      text,
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 3),
+    );
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
