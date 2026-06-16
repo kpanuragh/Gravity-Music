@@ -17,6 +17,22 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+/// Ensure libmpv's on-disk cache directory exists (desktop only).
+///
+/// media_kit drives libmpv with `cache-on-disk=yes` hardcoded; its cache lives
+/// in $XDG_CACHE_HOME/mpv (falling back to ~/.cache/mpv). The embedded libmpv
+/// does not create this directory itself — when absent, mpv logs
+/// "Failed to create file cache" and the following seek(0) fails, breaking
+/// skip/auto-advance/loop. Creating it up front is idempotent and cheap.
+void ensureMpvCacheDir() {
+  final env = Platform.environment;
+  final cacheHome = (env['XDG_CACHE_HOME']?.isNotEmpty ?? false)
+      ? env['XDG_CACHE_HOME']!
+      : '${env['HOME']}/.cache';
+  final dir = Directory('$cacheHome/mpv');
+  if (!dir.existsSync()) dir.createSync(recursive: true);
+}
+
 /// Base directory for app-persistent data, chosen per platform. The returned
 /// directory is guaranteed to exist.
 Future<Directory> appDataDirectory() async {

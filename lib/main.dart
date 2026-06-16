@@ -29,6 +29,12 @@ void main() async {
   // explicit guard keeps intent clear. Must run before any AudioPlayer is
   // constructed (i.e. before initAudioService()).
   if (Platform.isLinux || Platform.isWindows) {
+    // media_kit runs libmpv with `cache-on-disk=yes` hardcoded, whose on-disk
+    // cache lives in $XDG_CACHE_HOME/mpv (~/.cache/mpv). The embedded libmpv
+    // does NOT create that directory itself (unlike the mpv CLI), so when it's
+    // missing mpv logs "Failed to create file cache" and the subsequent
+    // seek(0) fails — which breaks skip/auto-advance/loop. Pre-create it.
+    ensureMpvCacheDir();
     JustAudioMediaKit.ensureInitialized();
   }
 
@@ -40,6 +46,10 @@ void main() async {
     AudioServiceMpris.init(
       dBusName: 'gravity_music',
       identity: 'Gravity Music',
+      // Links MPRIS to the installed .desktop entry so system media widgets
+      // show the app icon/name. Matches the GTK application-id and the
+      // installed desktop file basename (com.example.saraharmony.desktop).
+      desktopEntry: 'com.example.saraharmony',
       canControl: true,
       canPlay: true,
       canPause: true,
