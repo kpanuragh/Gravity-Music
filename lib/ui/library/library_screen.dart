@@ -188,8 +188,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
               );
             }),
           ),
-        const SliverToBoxAdapter(
-            child: SizedBox(height: AppSpacing.bottomDock)),
+        SliverToBoxAdapter(
+            child: SizedBox(height: bottomDockInset(context))),
       ],
     );
   }
@@ -691,8 +691,8 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               ),
             ),
           ],
-          const SliverToBoxAdapter(
-              child: SizedBox(height: AppSpacing.bottomDock)),
+          SliverToBoxAdapter(
+              child: SizedBox(height: bottomDockInset(context))),
         ],
         ),
       ),

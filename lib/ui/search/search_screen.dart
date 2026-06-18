@@ -168,7 +168,7 @@ class SearchScreen extends StatelessWidget {
                   );
                 }
                 return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.bottomDock),
+                  padding: EdgeInsets.only(bottom: bottomDockInset(context)),
                   itemCount: sc.results.length,
                   itemBuilder: (_, i) {
                     final r = sc.results[i];
@@ -201,7 +201,7 @@ class _IdleView extends StatelessWidget {
   Widget build(BuildContext context) {
     final pc = Get.find<PlayerController>();
     return ListView(
-      padding: const EdgeInsets.only(bottom: AppSpacing.bottomDock),
+      padding: EdgeInsets.only(bottom: bottomDockInset(context)),
       children: [
         Obx(() {
           final recent = pc.searchHistory;
