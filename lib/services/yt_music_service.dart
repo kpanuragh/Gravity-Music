@@ -41,9 +41,12 @@ class YtMusicSong {
 }
 
 class YtMusicService {
-  // Baked-in WEB_REMIX (YouTube Music web) innertube key — long-stable, used
-  // first. If Google ever rotates it, [_refreshConfig] scrapes a fresh one.
-  static const _fallbackKey = 'AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30';
+  // The youtubei endpoints accept requests with NO innertube API key, so none
+  // is stored here — keeping the source free of any Google-API-key-shaped
+  // string that secret scanners flag (the public web-client key isn't a real
+  // credential, but scanners pattern-match it regardless). Only the WEB_REMIX
+  // client version is sent; if a stale version is ever rejected,
+  // [_refreshConfig] scrapes a current one from the page.
   static const _defaultClientVersion = '1.20240101.01.00';
 
   // "Songs" filter param → returns Art Tracks (clean official audio) only.
@@ -53,13 +56,11 @@ class YtMusicService {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-  // Dynamic innertube config, refreshed from the music.youtube.com page ONLY
-  // after a request fails (i.e. lazily, so the happy path is a single request).
-  // Lets a Google-side key/version rotation self-heal without an app update.
-  static String? _dynamicKey;
+  // Client version refreshed from the music.youtube.com page ONLY after a
+  // request fails (lazily, so the happy path is a single request). Lets a
+  // rejected/stale client version self-heal without an app update.
   static String? _dynamicClientVersion;
 
-  static String get _key => _dynamicKey ?? _fallbackKey;
   static String get _clientVersion =>
       _dynamicClientVersion ?? _defaultClientVersion;
 
@@ -71,12 +72,11 @@ class YtMusicService {
     final q = query.trim();
     if (q.isEmpty) return [];
 
-    // Attempt with the current key.
     final first = await _search(q);
     if (first != null) return first;
 
-    // The request failed (e.g. a rotated key → 400/403). Refresh the innertube
-    // config from the YT Music page once and retry. Only happens on failure.
+    // The request failed (e.g. a stale client version was rejected). Refresh
+    // the client version from the YT Music page once and retry. Failure-only.
     if (await _refreshConfig()) {
       final second = await _search(q);
       if (second != null) return second;
@@ -92,7 +92,7 @@ class YtMusicService {
       final res = await http
           .post(
             Uri.parse('https://music.youtube.com/youtubei/v1/search'
-                '?key=$_key&prettyPrint=false'),
+                '?prettyPrint=false'),
             headers: const {
               'Content-Type': 'application/json',
               'Origin': 'https://music.youtube.com',
@@ -145,7 +145,7 @@ class YtMusicService {
       final res = await http
           .post(
             Uri.parse('https://music.youtube.com/youtubei/v1/next'
-                '?key=$_key&prettyPrint=false'),
+                '?prettyPrint=false'),
             headers: const {
               'Content-Type': 'application/json',
               'Origin': 'https://music.youtube.com',
@@ -246,9 +246,11 @@ class YtMusicService {
     return '';
   }
 
-  /// Scrapes the current innertube API key + client version from the
-  /// music.youtube.com page config. Returns true if a key was found. Called
-  /// only after a failed request, so a key rotation heals without an update.
+  /// Scrapes the current WEB_REMIX client version from the music.youtube.com
+  /// page config and caches it. Returns true if a *different* version was found
+  /// (so the caller retries). Called only after a failed request — lets a
+  /// rejected/stale client version self-heal without an app update. No API key
+  /// is fetched or stored; requests are keyless.
   static Future<bool> _refreshConfig() async {
     try {
       final res = await http.get(
@@ -260,13 +262,8 @@ class YtMusicService {
       final ver = RegExp(r'"INNERTUBE_CLIENT_VERSION":\s*"([^"]+)"')
           .firstMatch(res.body)
           ?.group(1);
-      if (ver != null && ver.isNotEmpty) _dynamicClientVersion = ver;
-
-      final key = RegExp(r'"INNERTUBE_API_KEY":\s*"([^"]+)"')
-          .firstMatch(res.body)
-          ?.group(1);
-      if (key != null && key.isNotEmpty) {
-        _dynamicKey = key;
+      if (ver != null && ver.isNotEmpty && ver != _clientVersion) {
+        _dynamicClientVersion = ver;
         return true;
       }
       return false;
