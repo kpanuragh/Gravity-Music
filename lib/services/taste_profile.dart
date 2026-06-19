@@ -4,6 +4,9 @@
 // no Hive/Get access here, so it is fully unit-testable; see TasteProfile.current()
 // (added in Task 2) for the wiring that reads real on-device sources.
 
+import 'package:get/get.dart';
+
+import '../controllers/player_controller.dart';
 import 'library_service.dart';
 
 /// Splits a (possibly multi-artist) field like "A, B & C" into trimmed names.
@@ -88,5 +91,21 @@ class TasteProfile {
     final max = raw.values.reduce((a, b) => a > b ? a : b);
     final norm = {for (final e in raw.entries) e.key: e.value / max};
     return TasteProfile._(norm, seed);
+  }
+
+  /// Builds the profile from live on-device sources. Safe if PlayerController
+  /// isn't registered yet (history falls back to empty).
+  factory TasteProfile.current() {
+    final liked = LibraryService.getLiked();
+    final playlistTracks = LibraryService.getPlaylists()
+        .expand((p) => p.tracks)
+        .toList();
+    List<LibraryTrack> history = const [];
+    if (Get.isRegistered<PlayerController>()) {
+      history = List<LibraryTrack>.from(
+          Get.find<PlayerController>().searchHistory);
+    }
+    return TasteProfile.build(
+        liked: liked, history: history, playlistTracks: playlistTracks);
   }
 }

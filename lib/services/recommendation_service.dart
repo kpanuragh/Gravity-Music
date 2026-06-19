@@ -9,8 +9,35 @@
 // Public surface is unchanged: `getRecommendations(videoId)` still returns a
 // RecommendedTrack list, so PlayerController.playWithRecommendations and the
 // AutoplayOrchestrator are untouched.
+import 'library_service.dart';
+import 'taste_profile.dart';
 import 'thumb_util.dart';
 import 'yt_music_service.dart';
+
+/// Re-orders radio [candidates] by the user's [profile] without dropping any
+/// (discovery preserved). Lower sort key = earlier. Cold start (empty profile)
+/// returns the list unchanged. Candidates in [recentlyPlayedIds] are demoted.
+List<RecommendedTrack> rerankByTaste(
+  List<RecommendedTrack> candidates,
+  TasteProfile profile,
+  Set<String> recentlyPlayedIds,
+) {
+  if (profile.isEmpty) return candidates;
+  const affinityWeight = 5.0; // up to 5 positions of lift for a loved artist
+  const freshnessPenalty = 3.0; // push a just-played track down
+  final indexed = <({RecommendedTrack track, double key})>[];
+  for (var i = 0; i < candidates.length; i++) {
+    final t = candidates[i];
+    var key = i.toDouble();
+    key -= affinityWeight * profile.scoreFor(t.artist);
+    if (recentlyPlayedIds.contains(t.videoId)) key += freshnessPenalty;
+    indexed.add((track: t, key: key));
+  }
+  // Stable sort by key (Dart's List.sort is not stable, so include original
+  // index as tiebreaker via the key already encoding i).
+  indexed.sort((a, b) => a.key.compareTo(b.key));
+  return indexed.map((e) => e.track).toList();
+}
 
 class RecommendedTrack {
   final String videoId;
@@ -79,8 +106,15 @@ class RecommendationService {
           .where((t) => t.videoId.isNotEmpty)
           .toList();
 
-      _cache[videoId] = (tracks: tracks, ts: DateTime.now());
-      return tracks;
+      // Personalize: reorder by the user's taste (no-op on cold start).
+      final profile = TasteProfile.current();
+      final recentIds = profile.isEmpty
+          ? const <String>{}
+          : LibraryService.getLiked().map((t) => t.videoId).toSet();
+      final ranked = rerankByTaste(tracks, profile, recentIds);
+
+      _cache[videoId] = (tracks: ranked, ts: DateTime.now());
+      return ranked;
     } catch (_) {
       return [];
     }
