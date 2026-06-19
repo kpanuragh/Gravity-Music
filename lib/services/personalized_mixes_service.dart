@@ -60,7 +60,7 @@ class PersonalizedMixesService {
           mixes.add(Mix(
             id: 'pm_artist_${seed.artist}',
             title: 'Your ${seed.artist} Mix',
-            image: tracks.first.thumbnail,
+            image: ThumbUtil.get(tracks.first.thumbnail, ThumbnailSize.card),
             trackCount: tracks.length,
             tracks: tracks,
           ));
@@ -84,7 +84,7 @@ class PersonalizedMixesService {
           mixes.add(Mix(
             id: 'pm_discovery',
             title: 'Discovery',
-            image: tracks.first.thumbnail,
+            image: ThumbUtil.get(tracks.first.thumbnail, ThumbnailSize.card),
             trackCount: tracks.length,
             tracks: tracks,
           ));
