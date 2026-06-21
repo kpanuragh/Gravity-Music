@@ -30,6 +30,21 @@ A premium music streaming app with dynamic album-driven visuals, a floating glas
   </tr>
 </table>
 
+### Android Auto
+
+<table>
+  <tr>
+    <td><img src="media/andriod_auto(in car).png" width="400"/></td>
+    <td><img src="media/andrio_auto(Playlists).png" width="250"/></td>
+    <td><img src="media/andriod_auto(Map view).png" width="250"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>In-car display</b></td>
+    <td align="center"><b>Browse Playlists</b></td>
+    <td align="center"><b>Map View</b></td>
+  </tr>
+</table>
+
 ### Desktop (Linux)
 
 <table>
