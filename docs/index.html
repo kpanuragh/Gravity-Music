@@ -241,6 +241,23 @@
   .showcase-copy p{ color:var(--text-1); font-size:15px; line-height:1.7; }
   @media (max-width: 860px){ .showcase{ grid-template-columns:1fr; } .showcase-copy{ order:-1; } }
 
+  /* ---------- DESKTOP ---------- */
+  .desktop-grid{ display:grid; grid-template-columns:1fr; gap:18px; }
+  .desktop-shot{ border-radius: var(--radius-lg); overflow:hidden; border:1px solid var(--glass-border-soft); }
+  .desktop-shot img{ display:block; width:100%; height:auto; }
+  .desktop-shot .ds-label{ padding:14px 20px; font-size:13px; color:var(--text-2); font-weight:500; background: var(--glass-bg); border-top:1px solid var(--glass-border-soft); }
+
+  /* ---------- CONTRIBUTORS ---------- */
+  .contrib-grid{ display:flex; flex-wrap:wrap; gap:16px; }
+  .contrib-card{
+    display:flex; align-items:center; gap:12px; padding:14px 18px;
+    text-decoration:none; transition: transform .3s var(--ease), border-color .3s var(--ease);
+  }
+  .contrib-card:hover{ transform: translateY(-4px); border-color: rgba(255,255,255,.22); }
+  .contrib-card img{ width:44px; height:44px; border-radius:50%; border:1px solid var(--glass-border); flex-shrink:0; }
+  .contrib-name{ font-size:14px; font-weight:600; color:var(--text-0); }
+  .contrib-meta{ font-size:12px; color:var(--text-2); margin-top:2px; }
+
   /* ---------- PRIVACY ---------- */
   .privacy-grid{ display:grid; grid-template-columns: repeat(3,1fr); gap:18px; }
   .privacy-tile{ padding:34px 28px; text-align:left; }
@@ -298,7 +315,7 @@
     <ul class="nav-links">
       <li><a href="#features">Features</a></li>
       <li><a href="#library">Library</a></li>
-      <li><a href="#privacy">Privacy</a></li>
+      <li><a href="#desktop">Desktop</a></li>
       <li><a href="#download">Download</a></li>
     </ul>
     <a class="nav-cta js-dl-apk" href="https://github.com/IamThejus/Gravity-Music/releases/latest">Get the app</a>
@@ -390,6 +407,39 @@
   </div>
 </section>
 
+<section class="section" id="desktop">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-eyebrow">Desktop</div>
+      <h2 class="sec-title">Linux &amp; Windows, <em>natively.</em></h2>
+      <p class="sec-sub">Full media key support, MPRIS system integration, and the same glassmorphism UI — running natively on Linux and Windows via libmpv.</p>
+    </div>
+    <div class="desktop-grid reveal">
+      <div class="desktop-shot glass">
+        <img src="desktop-app.png" alt="Gravity Music running on Gnome (Linux)">
+        <div class="ds-label">Gravity Music on GNOME / Wayland</div>
+      </div>
+      <div class="desktop-shot glass">
+        <img src="desktop-playbar.png" alt="Gravity Music MPRIS system media integration">
+        <div class="ds-label">System media controls via MPRIS</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="contributors">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="sec-eyebrow">Contributors</div>
+      <h2 class="sec-title">Built in <em>the open.</em></h2>
+      <p class="sec-sub">Gravity Music is open source. Everyone who has contributed to the codebase.</p>
+    </div>
+    <div class="contrib-grid reveal" id="contrib-list">
+      <!-- populated by JS -->
+    </div>
+  </div>
+</section>
+
 <section class="section" id="privacy">
   <div class="wrap">
     <div class="sec-head reveal">
@@ -467,6 +517,24 @@
       if (apk) document.querySelectorAll('.js-dl-apk').forEach(el => el.href = apk.browser_download_url);
       if (deb) document.querySelectorAll('.js-dl-deb').forEach(el => el.href = deb.browser_download_url);
       if (rpm) document.querySelectorAll('.js-dl-rpm').forEach(el => el.href = rpm.browser_download_url);
+    } catch (_) {}
+  })();
+
+  (async () => {
+    try {
+      const res = await fetch('https://api.github.com/repos/IamThejus/Gravity-Music/contributors');
+      if (!res.ok) return;
+      const contributors = await res.json();
+      const list = document.getElementById('contrib-list');
+      list.innerHTML = contributors.map(c => `
+        <a class="contrib-card glass" href="${c.html_url}" target="_blank" rel="noopener">
+          <img src="${c.avatar_url}&s=88" alt="${c.login}">
+          <div>
+            <div class="contrib-name">${c.login}</div>
+            <div class="contrib-meta">${c.contributions} commit${c.contributions !== 1 ? 's' : ''}</div>
+          </div>
+        </a>
+      `).join('');
     } catch (_) {}
   })();
 </script>

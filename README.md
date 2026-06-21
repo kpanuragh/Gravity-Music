@@ -30,6 +30,19 @@ A premium music streaming app with dynamic album-driven visuals, a floating glas
   </tr>
 </table>
 
+### Desktop (Linux)
+
+<table>
+  <tr>
+    <td><img src="media/Gnome(Manjro)(Wayland) App.png" width="500"/></td>
+    <td><img src="media/Gnome(Manjro)(Wayland) PlayBar.png" width="500"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>App</b></td>
+    <td align="center"><b>System Media Controls (MPRIS)</b></td>
+  </tr>
+</table>
+
 ## Features
 
 - **Cinematic Dark UI** — obsidian glassmorphism design with floating navigation, a floating mini-player, and blurred translucent surfaces
