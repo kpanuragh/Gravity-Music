@@ -71,6 +71,7 @@ A premium music streaming app with dynamic album-driven visuals, a floating glas
 - **Background playback** — lock-screen and notification controls with high-resolution artwork, loudness normalization, and session restore across app restarts
 - **Android Auto** — browse and play your playlists from the car
 - **Offline-friendly caching** — resolved stream URLs, song downloads, home/playlist data are cached locally
+- **Cloud sync (optional)** — sign in with Google to back up and sync your liked songs and playlists across devices via Supabase; the app remains fully offline and account-free unless you opt in
 
 ## Tech Stack
 
@@ -83,6 +84,7 @@ A premium music streaming app with dynamic album-driven visuals, a floating glas
 - [Hive](https://pub.dev/packages/hive) — local persistence (settings, cache, library, downloads, listening history)
 - [palette_generator](https://pub.dev/packages/palette_generator) — dynamic color extraction from album art
 - [lrclib.net](https://lrclib.net) — synced lyrics
+- [supabase_flutter](https://pub.dev/packages/supabase_flutter) + [google_sign_in](https://pub.dev/packages/google_sign_in) — optional cloud sync and Google authentication
 
 ## Getting Started
 
@@ -114,3 +116,11 @@ Personalization:
 - **`MixesService`** / **`PersonalizedMixesService`** — generate "Made For You" mixes entirely on-device; new users get a seeded Discovery Mix so home is never empty
 
 Stream URLs resolve cache-first: downloaded file (`file://`) → cached URL → fresh fetch via an isolate, modeled by `HMStreamingData`.
+
+## Disclaimer
+
+This project is a **personal, experimental app** built for learning and exploration. It is not intended for commercial use, monetization, or sale.
+
+Gravity Music streams audio from **YouTube** using YouTube's internal APIs and [`youtube_explode_dart`](https://pub.dev/packages/youtube_explode_dart). It does not host, store, or redistribute any audio or video content — all media is served directly from YouTube's CDN in real time, the same way a browser would.
+
+Use of this app may be subject to [YouTube's Terms of Service](https://www.youtube.com/t/terms). The author takes no responsibility for any ToS implications, misuse, or legal issues arising from the use of this software. **Use at your own risk.**
