@@ -189,6 +189,21 @@ class PlayerController extends GetxController {
 
   void clearQueue() => audioHandler.customAction('clearQueue');
 
+  /// Dismiss the player: stops playback and clears the whole session so the
+  /// mini-player disappears (the user swiped it away to reclaim screen space).
+  /// Playback resumes only when they start something new. Also drops the saved
+  /// session and any sleep timer so nothing restores it later.
+  void dismissPlayer() {
+    // Hide the mini-player this frame (the MiniPlayer's AnimatedSwitcher then
+    // animates it out). The audio_handler action below also emits a null
+    // mediaItem, which re-sets this to null — idempotent.
+    currentSong.value = null;
+    _sleepTimer?.cancel();
+    sleepTimerEnd.value = null;
+    audioHandler.customAction('dismissPlayer');
+    Hive.box('AppPrefs').delete('session');
+  }
+
   // ── Volume ────────────────────────────────────────────────────────────────
 
   void setVolume(double v) {

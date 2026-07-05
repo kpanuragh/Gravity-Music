@@ -756,6 +756,30 @@ class MyAudioHandler extends BaseAudioHandler with GetxServiceMixin {
         _queueMgr.onClearedExceptCurrent(q.first.id);
         break;
 
+      // ── Dismiss the player entirely ─────────────────────────────────────
+      // Stops playback and tears the whole session down: empties the queue and
+      // nulls the current media item so the mini-player disappears and the
+      // screen reclaims the space. Playback resumes only when the user starts
+      // something new. (PlayerController also clears the saved session so this
+      // survives a restart.)
+      case 'dismissPlayer':
+        // pause() not stop() — see playAllFrom for why stop() bleeds the last
+        // position into the next track. clearForReload() empties the source so
+        // playback is silenced while the player stays alive (resetting the
+        // timeline to 0 when the user next plays something).
+        await _engine.player.pause();
+        await _engine.clearForReload();
+        _engine.setPhase(PlaybackPhase.idle, reason: 'dismissPlayer');
+        currentSongUrl = null;
+        currentIndex = 0;
+        queue.add([]);
+        mediaItem.add(null);
+        playbackState.add(playbackState.value.copyWith(
+          processingState: AudioProcessingState.idle,
+          playing: false,
+        ));
+        break;
+
       // ── Toggle loudness normalisation ───────────────────────────────────
       case 'toggleLoudnessNormalization':
         _engine.loudnessNormalizationEnabled = extras!['enable'] as bool;

@@ -729,7 +729,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           SliverAppBar(
             backgroundColor: AppColors.canvas,
             pinned: true,
-            expandedHeight: 280,
+            expandedHeight: 300,
             leading: const AppBackButton(),
             actions: [
               _PlaylistDownloadAction(playlist: pl),
@@ -745,19 +745,25 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             flexibleSpace: FlexibleSpaceBar(
               background: Padding(
                 padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.screenMargin, 80, AppSpacing.screenMargin, 12),
+                    AppSpacing.screenMargin, 72, AppSpacing.screenMargin, 12),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.end,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     ArtImage(
                         url: sizedThumb(pl.thumbnailUrl, ThumbnailSize.card),
-                        size: 150,
+                        size: 140,
                         radius: AppRadius.lg),
                     const SizedBox(height: 12),
-                    Text(pl.name,
-                        style: AppText.heading(size: 24),
-                        textAlign: TextAlign.center),
+                    // Flexible + maxLines keeps long imported playlist names
+                    // (which can run 3+ lines) from overflowing the header.
+                    Flexible(
+                      child: Text(pl.name,
+                          style: AppText.heading(size: 24),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis),
+                    ),
                     Text('${pl.tracks.length} songs',
                         style: AppText.subtitle(size: 13)),
                   ],
@@ -917,14 +923,26 @@ class DownloadsScreen extends StatelessWidget {
                           title: t.title,
                           subtitle:
                               'Downloading… ${(p * 100).clamp(0, 100).toStringAsFixed(0)}%',
-                          trailing: SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              value: p == 0 ? null : p,
-                              strokeWidth: 2.5,
-                              color: Colors.white,
-                            ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  value: p == 0 ? null : p,
+                                  strokeWidth: 2.5,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close_rounded,
+                                    color: AppColors.textTertiary),
+                                tooltip: 'Cancel download',
+                                onPressed: () =>
+                                    dc.cancelDownload(t.videoId),
+                              ),
+                            ],
                           ),
                           onTap: () {},
                         );
