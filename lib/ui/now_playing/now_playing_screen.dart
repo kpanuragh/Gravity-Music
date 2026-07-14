@@ -792,6 +792,7 @@ class _LyricsOverlayState extends State<_LyricsOverlay> {
               child: AnimatedDefaultTextStyle(
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOut,
+                textAlign: TextAlign.center,
                 style: AppText.heading(size: active ? 28 : 21).copyWith(
                   fontWeight: active ? FontWeight.w800 : FontWeight.w600,
                   color: active ? accent : Colors.white.withOpacity(0.28),
@@ -800,7 +801,10 @@ class _LyricsOverlayState extends State<_LyricsOverlay> {
                       ? [Shadow(color: accent.withOpacity(0.45), blurRadius: 18)]
                       : null,
                 ),
-                child: Text(lyrics.parsedLyrics[i].text),
+                child: Text(
+                  lyrics.parsedLyrics[i].text,
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
           );
