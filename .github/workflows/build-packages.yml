@@ -185,6 +185,7 @@ jobs:
           mkdir -p dist
           dart run msix:create \
             --build-windows false \
+            --install-certificate false \
             --output-path dist \
             --output-name "gravity-music-${PKG_VERSION}"
           ls -la dist
